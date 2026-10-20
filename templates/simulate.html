@@ -1,0 +1,79 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <title>IoT Simulator Console — TransGuard AI</title>
+    <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}">
+    <script src="{{ url_for('static', filename='script.js') }}"></script>
+</head>
+<body>
+    <div class="app-container">
+        <!-- FIXED SIDEBAR CONSOLE -->
+        <div class="sidebar">
+            <div>
+                <div class="brand-text">
+                    <h2>TransGuard AI</h2>
+                    <p>IoT Hardware Console</p>
+                </div>
+
+                <ul class="nav-links">
+                    <li><a href="/dashboard">Dashboard</a></li>
+                    <li><a href="/alerts">Alerts <span id="alert-count-badge" style="background:#ef4444; color:#fff; font-size:0.75rem; padding:2px 8px; border-radius:10px;">{{ alert_count }}</span></a></li>
+                    <div class="badge-divider-line"></div>
+                    <li><a href="/history">History</a></li>
+                    <li><a href="/report">Reports</a></li>
+                    <li><a href="/simulator" class="active" style="color: var(--accent-blue);">IoT Simulator</a></li>
+                </ul>
+            </div>
+
+            <div style="border-top: 1px solid var(--border-color); padding-top: 15px;">
+                <p style="font-size: 0.85rem; font-weight: 600; color: var(--text-primary);">User: {{ user.username }}</p>
+                <a href="/logout" style="color: var(--accent-red); font-size: 0.8rem; text-decoration: none; display: block; margin-top: 6px;">Logout</a>
+            </div>
+        </div>
+
+        <!-- MAIN SCROLLABLE IOT CONSOLE WORKSPACE -->
+        <div class="main-content">
+            <div class="top-header">
+                <div class="page-title">
+                    <h1>ESP32 IoT Transformer Door Sensor Console</h1>
+                    <p>Hardware simulation, real-time Wi-Fi connectivity, and sensor telemetry</p>
+                </div>
+                <a href="{{ wokwi_url }}" target="_blank" class="btn-action-secondary" style="width: auto; background: var(--accent-blue); color: #fff; text-decoration: none; border: none;">Open Fullscreen Wokwi ↗</a>
+            </div>
+
+            <!-- Top Hardware Status Cards -->
+            <div class="top-cards-grid-three">
+                <div class="card">
+                    <div class="card-label">Microcontroller</div>
+                    <div class="card-val val-blue">ESP32 DevKit V1</div>
+                    <div class="card-subtext">Door Limit Switch Pin: GPIO 15</div>
+                </div>
+
+                <div class="card">
+                    <div class="card-label">Connectivity Status</div>
+                    <div class="card-val val-safe">CONNECTED</div>
+                    <div class="card-subtext">Protocol: HTTP POST / Wokwi WiFi</div>
+                </div>
+
+                <div class="card">
+                    <div class="card-label">Active Sensors</div>
+                    <div class="card-val" style="color: var(--text-primary);">3 Sensors</div>
+                    <div class="card-subtext">Door Sensor, Siren Buzzer, Cam Trigger</div>
+                </div>
+            </div>
+
+            <!-- Embedded Interactive Wokwi Simulator Window -->
+            <div class="card" style="padding: 10px;">
+                <div style="display: flex; justify-content: space-between; padding: 10px 15px; border-bottom: 1px solid var(--border-color);">
+                    <span style="font-weight: 600; font-size: 0.9rem;">Interactive Circuit Diagram & Code Terminal</span>
+                    <span style="font-size: 0.8rem; color: var(--accent-green); font-weight: 600;">● Live Execution</span>
+                </div>
+                <div style="width: 100%; height: 550px; margin-top: 10px;">
+                    <iframe src="{{ wokwi_url }}" style="width: 100%; height: 100%; border: none; border-radius: 10px;"></iframe>
+                </div>
+            </div>
+        </div>
+    </div>
+</body>
+</html>

@@ -1,0 +1,15 @@
+# Python / Flask
+__pycache__/
+*.pyc
+venv/
+.env
+
+# Database & Media Evidence Storage
+database/*.db
+static/captured_images/*
+static/captured_videos/*
+static/reports/*
+
+# IDE / OS files
+.DS_Store
+.vscode/

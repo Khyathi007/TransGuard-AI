@@ -1,0 +1,200 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>TransGuard AI — Monitoring Dashboard</title>
+    <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}">
+    <script src="{{ url_for('static', filename='script.js') }}"></script>
+</head>
+<body>
+    <div class="app-container">
+        <!-- FIXED LEFT NAVIGATION CONSOLE -->
+        <div class="sidebar">
+            <div>
+                <div class="brand">
+                    <div class="brand-icon">
+                        <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5">
+                            <polygon points="13 2 3 14 12 14 11 22 21 10 12 10 13 2"></polygon>
+                        </svg>
+                    </div>
+                    <div class="brand-text">
+                        <h2>TransGuard</h2>
+                        <p>AI MONITORING</p>
+                    </div>
+                </div>
+
+                <ul class="nav-links">
+                    <li><a href="/dashboard" class="active">Dashboard</a></li>
+                    <li>
+                        <a href="/alerts">
+                            Alerts 
+                            <span id="alert-count-badge" class="nav-badge">{{ alert_count }}</span>
+                        </a>
+                    </li>
+                    <div class="badge-divider-line"></div>
+                    <li><a href="/history">History</a></li>
+                    <li><a href="/report">Reports</a></li>
+                    <li><a href="/simulator" style="color: var(--accent-blue);">IoT Simulator</a></li>
+                </ul>
+            </div>
+
+            <div class="sidebar-user-block">
+                <div class="user-status-dot"></div>
+                <div>
+                    <p class="user-name">User: {{ user.username }}</p>
+                    <a href="/logout" class="logout-link">Logout</a>
+                </div>
+            </div>
+        </div>
+
+        <!-- MAIN SCROLLABLE DASHBOARD WORKSPACE -->
+        <div class="main-content">
+            <!-- TOP HEADER -->
+            <div class="top-header">
+                <div class="page-title">
+                    <span class="category-subtitle">AGRICULTURAL TRANSFORMER</span>
+                    <h1>Monitoring Dashboard</h1>
+                    <p>Real-time protection and incident monitoring</p>
+                </div>
+
+                <div class="header-action-group">
+                    <button class="btn-test" onclick="openTestIncidentModal()">TEST INCIDENT DETECTION</button>
+                    <span class="subtext-note">Development testing only</span>
+                </div>
+            </div>
+
+            <!-- TOP 3 STATUS CARDS -->
+            <div class="top-cards-grid-three">
+                <!-- CARD 1: TRANSFORMER STATUS -->
+                <div class="card card-status">
+                    <div class="card-label">TRANSFORMER</div>
+                    <div class="card-val val-safe" id="status-card-val">
+                        {% if active_incident %}
+                            {% if active_incident.threat_level == 'HIGH' %}
+                                <span class="val-high">HIGH ALERT</span>
+                            {% else %}
+                                <span class="val-low">LOW ALERT</span>
+                            {% endif %}
+                        {% else %}
+                            SAFE
+                        {% endif %}
+                    </div>
+                    <div class="card-subtext" id="status-card-subtext">Power supply normal</div>
+                </div>
+
+                <!-- CARD 2: ACTIVE ALERTS -->
+                <div class="card card-status" style="cursor: pointer;" onclick="window.location.href='/alerts'">
+                    <div class="card-label">ACTIVE ALERTS</div>
+                    <div class="card-val val-blue" id="stat-alert-count">{{ alert_count }}</div>
+                    <div class="card-subtext" id="alert-card-subtext">{{ captured_count }} images captured</div>
+                </div>
+
+                <!-- CARD 3: HERO CLOCK & DATE -->
+                <div class="card card-status">
+                    <div class="card-label">CURRENT CLOCK</div>
+                    <div class="card-val" id="live-clock-time" style="font-size: 1.6rem; color: var(--text-primary); font-weight: 800;">--:--:--</div>
+                    <div class="card-subtext" id="live-clock-date" style="font-weight: 600; color: var(--text-secondary);">-- --- ----</div>
+                </div>
+            </div>
+
+            <!-- CAMERA VIEWPORT & EXTENDED SHIELD BAR GRID -->
+            <div class="camera-section-grid">
+                <!-- Left Column: Camera Viewport -->
+                <div class="camera-card">
+                    <div class="camera-header">
+                        <div>
+                            <span class="section-badge">CAMERA MONITOR</span>
+                            <h3>Camera Feed</h3>
+                        </div>
+                        <span id="cam-status-tag" class="standby-tag">STANDBY</span>
+                    </div>
+
+                    <div class="camera-viewport">
+                        <video id="webcam-feed" autoplay playsinline muted></video>
+                        <canvas id="capture-canvas" style="display: none;"></canvas>
+                        <div id="camera-overlay-box" class="camera-standby-overlay">
+                            <div class="standby-icon">📷</div>
+                            <h4>CAMERA STANDBY</h4>
+                            <p>Camera activates when an incident is detected</p>
+                            <span class="waiting-dot">• Laptop camera waiting</span>
+                        </div>
+                        <div class="viewport-footer">
+                            <span>CAM 01</span>
+                            <span>LAPTOP CAMERA - LOCAL</span>
+                        </div>
+                    </div>
+
+                    <button class="btn-action-stop" onclick="stopAlertManually()">Stop Camera / Live Feed</button>
+                </div>
+
+                <!-- Right Column: Extended Vertical Shield Status Bar -->
+                <div id="shield-status-box" class="shield-card extended-bar">
+                    <div class="shield-header-tag">SECURITY MONITOR</div>
+                    <div class="shield-icon-container shield-safe">
+                        <svg width="56" height="56" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                            <path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"></path>
+                            <path d="m9 12 2 2 4-4"></path>
+                        </svg>
+                    </div>
+                    <div class="shield-title" style="color: var(--accent-green);">SYSTEM SAFE & SECURED</div>
+                    <div class="shield-desc">All sensors online. Transformer enclosure locked and monitored.</div>
+                    
+                    <div class="shield-footer-metrics">
+                        <div class="metric-row">
+                            <span>Door Sensor:</span>
+                            <strong style="color: var(--accent-green);">CLOSED</strong>
+                        </div>
+                        <div class="metric-row">
+                            <span>Buzzer Siren:</span>
+                            <strong>READY</strong>
+                        </div>
+                        <div class="metric-row">
+                            <span>IoT Device:</span>
+                            <strong style="color: var(--accent-blue);">WOKWI CONNECTED</strong>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- BOTTOM GALLERY SECTION -->
+            <div class="card">
+                <div class="card-header-clean">
+                    <div class="card-label">RECENT EVIDENCE CAPTURES</div>
+                    <a href="/history" class="view-all-link">View All History →</a>
+                </div>
+                <div class="gallery-grid" id="live-gallery-grid">
+                    {% for img in recent_images %}
+                    <div class="thumb-box">
+                        <img src="{{ url_for('static', filename=img.file_path) }}" alt="evidence frame">
+                        <div class="thumb-time">{{ img.captured_at }}</div>
+                    </div>
+                    {% else %}
+                    <p style="color: var(--text-secondary); font-size: 0.85rem; grid-column: span 4; padding: 20px 0; text-align: center;">No evidence images captured yet.</p>
+                    {% endfor %}
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- TEST INCIDENT MODAL -->
+    <div id="sim-modal" class="modal-overlay" style="display: none;">
+        <div class="modal-content">
+            <h3 style="margin-bottom: 10px; font-weight: 800;">Test Incident Detection</h3>
+            <p style="font-size: 0.85rem; color: var(--text-secondary); margin-bottom: 20px;">
+                Camera & Video recording started immediately! Choose owner response:
+            </p>
+            <div style="display: flex; gap: 10px; justify-content: center;">
+                <button class="btn-yes" onclick="selectOwnerResponse('YES');">YES (HIGH)</button>
+                <button class="btn-no" onclick="selectOwnerResponse('NO');">NO (LOW)</button>
+            </div>
+            <br>
+            <button class="btn-action-secondary" style="border: none; background: transparent; color: var(--text-secondary);" onclick="document.getElementById('sim-modal').style.display='none'">Keep Recording</button>
+        </div>
+    </div>
+
+    <script>
+        setInterval(pollDashboardState, 2000);
+    </script>
+</body>
+</html>

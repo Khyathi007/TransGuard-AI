@@ -1,0 +1,136 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Alerts — TransGuard AI</title>
+    <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}">
+    <script src="{{ url_for('static', filename='script.js') }}"></script>
+</head>
+<body>
+    <div class="app-container">
+        <!-- FIXED SIDEBAR -->
+        <div class="sidebar">
+            <div>
+                <div class="brand">
+                    <div class="brand-icon">
+                        <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5">
+                            <polygon points="13 2 3 14 12 14 11 22 21 10 12 10 13 2"></polygon>
+                        </svg>
+                    </div>
+                    <div class="brand-text">
+                        <h2>TransGuard</h2>
+                        <p>ALERTS CENTER</p>
+                    </div>
+                </div>
+
+                <ul class="nav-links">
+                    <li><a href="/dashboard">Dashboard</a></li>
+                    <li><a href="/alerts" class="active">Alerts <span id="alert-count-badge" class="nav-badge">{{ alert_count }}</span></a></li>
+                    <div class="badge-divider-line"></div>
+                    <li><a href="/history">History</a></li>
+                    <li><a href="/report">Reports</a></li>
+                    <li><a href="/simulator" style="color: var(--accent-blue);">IoT Simulator</a></li>
+                </ul>
+            </div>
+
+            <div class="sidebar-user-block">
+                <button onclick="toggleTheme()" class="btn-action-secondary" style="margin-bottom: 10px;">🌙 / ☀️ Theme Toggle</button>
+                <div style="display: flex; align-items: center; gap: 10px;">
+                    <div class="user-status-dot"></div>
+                    <div>
+                        <p class="user-name">User: {{ user.username }}</p>
+                        <a href="/logout" class="logout-link">Logout</a>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- MAIN SCROLLABLE ALERTS WORKSPACE -->
+        <div class="main-content">
+            <div class="top-header">
+                <div class="page-title">
+                    <span class="category-subtitle">SECURITY INCIDENTS</span>
+                    <h1>Active Alerts</h1>
+                    <p>Review real-time transformer alerts, photo frames, and live video recordings</p>
+                </div>
+            </div>
+
+            <!-- ROW BAR LIST -->
+            <div style="display: flex; flex-direction: column;">
+                {% for item in alert_details %}
+                <div class="alert-bar-row">
+                    <div class="alert-bar-left">
+                        {% if item.alert.threat_level == 'HIGH' %}
+                            <span class="alert-pill-high">HIGH</span>
+                        {% else %}
+                            <span class="alert-pill-low">LOW</span>
+                        {% endif %}
+                    </div>
+
+                    <div class="alert-bar-right-group">
+                        <div class="alert-bar-info">
+                            <span class="alert-bar-title">TG-{{ item.alert.id }} — Transformer Door Opened</span>
+                            <span class="alert-bar-time">({{ item.alert.detected_time }})</span>
+                        </div>
+
+                        <div class="alert-bar-actions">
+                            <button class="btn-sm-view" onclick="document.getElementById('img-modal-{{ item.alert.alert_id }}').style.display='flex'">
+                                View Photos & Video Proof
+                            </button>
+                            <button class="btn-sm-delete" onclick="deleteAlert({{ item.alert.alert_id }})">Delete</button>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- SCROLLABLE EVIDENCE MODAL -->
+                <div id="img-modal-{{ item.alert.alert_id }}" class="modal-overlay" style="display: none;" onclick="if(event.target === this) this.style.display='none'">
+                    <div class="modal-content modal-scrollable">
+                        <button class="modal-close-x" onclick="document.getElementById('img-modal-{{ item.alert.alert_id }}').style.display='none'">&times;</button>
+
+                        <h3 style="margin-bottom: 15px; font-weight: 800;">Captured Evidence (TG-{{ item.alert.id }})</h3>
+                        
+                        {% if item.video_path %}
+                        <div style="margin-bottom: 20px;">
+                            <h4 style="font-size: 0.85rem; font-weight: 700; margin-bottom: 8px;">Live Feed Video Proof (.WEBM):</h4>
+                            <video src="/static/{{ item.video_path }}" controls style="width: 100%; max-height: 320px; border-radius: 8px; background: #000; object-fit: contain;"></video>
+                        </div>
+                        {% endif %}
+
+                        <h4 style="font-size: 0.85rem; font-weight: 700; margin-bottom: 8px;">Captured Still Frames:</h4>
+                        <div class="gallery-grid">
+                            {% for img in item.images %}
+                            <div class="thumb-box">
+                                <img src="{{ url_for('static', filename=img.file_path) }}" alt="evidence">
+                                <div class="thumb-time">{{ img.captured_at }}</div>
+                            </div>
+                            {% else %}
+                            <p style="color: var(--text-secondary); grid-column: span 4; text-align: center;">No image frames available.</p>
+                            {% endfor %}
+                        </div>
+                        <br>
+                        <button class="btn-action-secondary" onclick="document.getElementById('img-modal-{{ item.alert.alert_id }}').style.display='none'">Close Window</button>
+                    </div>
+                </div>
+                {% else %}
+                <div class="card" style="text-align: center; padding: 40px;">
+                    <p style="color: var(--text-secondary); font-size: 0.9rem;">No active alerts present. Your system is currently secure.</p>
+                </div>
+                {% endfor %}
+            </div>
+        </div>
+    </div>
+
+    <script>
+        function deleteAlert(alertId) {
+            if (confirm("Delete alert? (Record will remain in History marked DELETED)")) {
+                fetch('/api/alert/delete', {
+                    method: 'POST',
+                    headers: {'Content-Type': 'application/json'},
+                    body: JSON.stringify({ alert_id: alertId })
+                }).then(() => window.location.reload());
+            }
+        }
+    </script>
+</body>
+</html>
