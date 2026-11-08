@@ -92,8 +92,12 @@
                         
                         {% if item.video_path %}
                         <div style="margin-bottom: 20px;">
-                            <h4 style="font-size: 0.85rem; font-weight: 700; margin-bottom: 8px;">Live Feed Video Proof (.WEBM):</h4>
-                            <video src="/static/{{ item.video_path }}" controls style="width: 100%; max-height: 320px; border-radius: 8px; background: #000; object-fit: contain;"></video>
+                            <h4 style="font-size: 0.85rem; font-weight: 700; margin-bottom: 8px;">Recorded Live Feed Video (.MP4 / .WEBM):</h4>
+                            <video src="{{ url_for('static', filename=item.video_path) }}" controls style="width: 100%; max-height: 320px; border-radius: 8px; background: #000; object-fit: contain;"></video>
+                        </div>
+                        {% else %}
+                        <div style="margin-bottom: 15px; padding: 12px; background: var(--bg-page); border-radius: 8px; color: var(--text-secondary); font-size: 0.8rem;">
+                            No recorded video file attached to this alert.
                         </div>
                         {% endif %}
 
