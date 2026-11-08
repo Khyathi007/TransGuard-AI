@@ -35,7 +35,7 @@ function updateClock() {
 }
 setInterval(updateClock, 1000);
 
-// Immediate Camera Stream & Continuous Timestamped Canvas Recording (.MP4)
+// Immediate Camera Stream & Continuous Timestamped Canvas Recording (.MP4 / .WEBM)
 function startCameraAndRecording(incidentId) {
     currentActiveIncidentId = incidentId;
     const videoEl = document.getElementById('webcam-feed');
@@ -77,14 +77,20 @@ function startCameraAndRecording(incidentId) {
             const canvasStream = canvasEl.captureStream(30);
             recordedChunks = [];
 
-            // Strict MP4 options selection for QuickTime and universal player playback
-            let options = { mimeType: 'video/mp4;codecs=avc1' };
-            if (!MediaRecorder.isTypeSupported(options.mimeType)) {
-                options = { mimeType: 'video/mp4' };
+            // MIME type selection with broad browser fallback support
+            let mimeType = 'video/mp4;codecs=avc1';
+            if (!MediaRecorder.isTypeSupported(mimeType)) {
+                mimeType = 'video/mp4';
+            }
+            if (!MediaRecorder.isTypeSupported(mimeType)) {
+                mimeType = 'video/webm;codecs=vp9';
+            }
+            if (!MediaRecorder.isTypeSupported(mimeType)) {
+                mimeType = 'video/webm';
             }
 
             try {
-                mediaRecorder = new MediaRecorder(canvasStream, options);
+                mediaRecorder = new MediaRecorder(canvasStream, { mimeType: mimeType });
             } catch (e) {
                 mediaRecorder = new MediaRecorder(canvasStream);
             }
@@ -210,15 +216,17 @@ function stopCamera() {
     }
 }
 
-// Upload full-length MP4 video to server silently
+// Upload full-length video to server silently
 function uploadRecordedVideo() {
     if (recordedChunks.length === 0 || !currentActiveIncidentId) return;
 
-    // Force MP4 blob output
-    const rawBlob = new Blob(recordedChunks, { type: 'video/mp4' });
+    const mime = mediaRecorder ? mediaRecorder.mimeType : 'video/mp4';
+    const ext = mime.includes('mp4') ? 'mp4' : 'webm';
+
+    const rawBlob = new Blob(recordedChunks, { type: mime });
 
     const formData = new FormData();
-    formData.append('video', rawBlob, `incident_${currentActiveIncidentId}.mp4`);
+    formData.append('video', rawBlob, `incident_${currentActiveIncidentId}.${ext}`);
     formData.append('incident_id', currentActiveIncidentId);
 
     fetch('/api/upload_video', {
@@ -226,7 +234,8 @@ function uploadRecordedVideo() {
         body: formData
     })
     .then(res => res.json())
-    .then(data => console.log("Recorded MP4 video stored to server successfully:", data.video_path));
+    .then(data => console.log("Recorded video stored to server successfully:", data.video_path))
+    .catch(err => console.error("Video upload error:", err));
 }
 
 function openTestIncidentModal() {
