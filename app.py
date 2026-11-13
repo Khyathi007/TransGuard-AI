@@ -423,7 +423,7 @@ def poll_dashboard():
     conn.close()
     return jsonify({"authenticated": True, "has_active": False, "alert_count": alert_count, "captured_count": 0})
 
-@app.route('/api/stop_alert', methods=['POST'])
+@@app.route('/api/stop_alert', methods=['POST'])
 def stop_alert():
     user = get_current_user()
     if not user:
@@ -440,7 +440,7 @@ def stop_alert():
     if incident_id:
         conn.execute("UPDATE incidents SET status = 'COMPLETED' WHERE id = ? AND user_id = ?", (incident_id, user['id']))
 
-        # Build playable H.264 MP4 video with crisp burned-in timestamp on every frame
+        # Build playable H.264 MP4 video with large, crisp burned-in timestamp on every frame
         existing_vid = conn.execute("SELECT id FROM captured_videos WHERE incident_id = ?", (incident_id,)).fetchone()
         if not existing_vid:
             imgs = conn.execute("SELECT file_path, captured_at FROM captured_images WHERE incident_id = ? ORDER BY id ASC", (incident_id,)).fetchall()
@@ -458,15 +458,18 @@ def stop_alert():
                     filename = f"TG-{incident_id}_recording.mp4"
                     filepath = os.path.join(VIDEO_FOLDER, filename)
                     writer = imageio.get_writer(filepath, fps=2, codec='libx264', pixelformat='yuv420p')
-                    font = ImageFont.load_default()
+                    try:
+                        font = ImageFont.load_default(size=22)
+                    except TypeError:
+                        font = ImageFont.load_default()
 
                     for fp, cap_time in valid_imgs:
                         im = Image.open(fp).convert('RGB').resize((640, 480))
                         draw = ImageDraw.Draw(im)
-                        # High-contrast top-left timestamp banner burned directly onto video
-                        draw.rectangle([(12, 12), (280, 42)], fill=(15, 23, 42))
-                        draw.rectangle([(12, 12), (17, 42)], fill=(34, 197, 94))
-                        draw.text((24, 21), f"REC | {cap_time}", fill=(255, 255, 255), font=font)
+                        # Large high-contrast top-left timestamp banner burned onto video
+                        draw.rectangle([(10, 10), (390, 52)], fill=(15, 23, 42))
+                        draw.rectangle([(10, 10), (18, 52)], fill=(34, 197, 94))
+                        draw.text((28, 20), f"REC | {cap_time}", fill=(255, 255, 255), font=font)
 
                         arr = np.array(im)
                         writer.append_data(arr)
