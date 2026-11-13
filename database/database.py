@@ -23,6 +23,8 @@ def init_db():
             username TEXT UNIQUE NOT NULL,
             password TEXT NOT NULL,
             email TEXT NOT NULL,
+            owner_name TEXT,
+            discom_name TEXT DEFAULT 'APSPDCL',
             phone TEXT NOT NULL,
             location TEXT NOT NULL,
             role TEXT DEFAULT 'Owner',

@@ -2,7 +2,7 @@ import os
 import datetime
 import base64
 import logging
-from flask import Flask, render_template, request, jsonify, redirect, url_for, session
+from flask import Flask, render_template, request, jsonify, redirect, url_for, session, flash
 from werkzeug.security import generate_password_hash, check_password_hash
 from dotenv import load_dotenv
 
@@ -34,7 +34,10 @@ def get_current_user():
     if 'user_id' not in session:
         return None
     conn = get_db()
-    user = conn.execute("SELECT id, username, email, phone, location, role FROM users WHERE id = ?", (session['user_id'],)).fetchone()
+    user = conn.execute(
+        "SELECT id, username, email, owner_name, discom_name, phone, location, role FROM users WHERE id = ?",
+        (session['user_id'],)
+    ).fetchone()
     conn.close()
     return user
 
@@ -55,12 +58,15 @@ def login():
         user = conn.execute("SELECT * FROM users WHERE username = ?", (username,)).fetchone()
         conn.close()
         if user and check_password_hash(user['password'], password):
+            session.clear()
             session['user_id'] = user['id']
             session['username'] = user['username']
             return redirect(url_for('dashboard'))
         error = "Invalid credentials."
+        flash(error, "danger")
     return render_template('login.html', error=error)
 
+@app.route('/signup', methods=['POST'])
 @app.route('/register', methods=['GET', 'POST'])
 def register():
     error = None
@@ -68,20 +74,24 @@ def register():
         username = request.form.get('username', '').strip()
         password = request.form.get('password', '')
         email = request.form.get('email', '').strip()
+        owner_name = request.form.get('owner_name', '').strip() or username
+        discom_name = request.form.get('discom_name', 'APSPDCL').strip() or 'APSPDCL'
         phone = request.form.get('phone', '').strip()
         location = request.form.get('location', '').strip()
         transformer_id = request.form.get('transformer_id', '').strip().upper()
 
         if not all([username, password, email, phone, location, transformer_id]):
             error = "All fields are required."
+            flash(error, "danger")
+            return redirect(url_for('login'))
         else:
             hashed_pw = generate_password_hash(password, method='pbkdf2:sha256')
             conn = get_db()
             cursor = conn.cursor()
             try:
                 cursor.execute(
-                    "INSERT INTO users (username, password, email, phone, location) VALUES (?, ?, ?, ?, ?)",
-                    (username, hashed_pw, email, phone, location)
+                    "INSERT INTO users (username, password, email, owner_name, discom_name, phone, location) VALUES (?, ?, ?, ?, ?, ?, ?)",
+                    (username, hashed_pw, email, owner_name, discom_name, phone, location)
                 )
                 user_id = cursor.lastrowid
                 cursor.execute(
@@ -90,13 +100,19 @@ def register():
                 )
                 conn.commit()
                 conn.close()
-                return redirect(url_for('login'))
+
+                session.clear()
+                session['user_id'] = user_id
+                session['username'] = username
+                return redirect(url_for('dashboard'))
             except Exception as e:
                 conn.rollback()
                 conn.close()
                 error = "Registration failed. Username or Transformer ID may already exist."
+                flash(error, "danger")
+                return redirect(url_for('login'))
 
-    return render_template('register.html', error=error)
+    return render_template('login.html', error=error)
 
 @app.route('/logout')
 def logout():
@@ -588,14 +604,14 @@ def generate_report():
 
     report_facts = {
         "id": incident['id'],
-        "owner_name": user['username'],
+        "owner_name": user['owner_name'] or user['username'],
         "phone": user['phone'],
         "email": user['email'],
         "location": user['location'],
         "transformer_id": incident['transformer_id'],
         "detected_time": incident['detected_time'],
         "threat_level": incident['threat_level'],
-        "discom_name": "APSPDCL",
+        "discom_name": user['discom_name'] or "APSPDCL",
         "capacity": "100 KVA",
         "estimated_value": "2,50,000",
         "images": imgs
