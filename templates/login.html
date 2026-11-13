@@ -275,7 +275,6 @@
                     </div>
                     <div class="banner-content">
                         <div class="d-flex align-items-center gap-3 text-custom-muted text-sm">
-                            <small><i class="fa-solid fa-lock text-info"></i> 256-bit Encrypted Session</small>
                             <small><i class="fa-solid fa-camera text-success"></i> Live Feed Enabled</small>
                         </div>
                     </div>
@@ -319,7 +318,7 @@
 
                             <form action="/login" method="POST">
                                 <div class="form-floating mb-3">
-                                    <input type="text" class="form-control" id="loginUsername" name="username" placeholder="Username" required>
+                                    <input type="text" class="form-control" id="loginUsername" name="username" placeholder="Username" autocapitalize="none" autocorrect="off" spellcheck="false" required>
                                     <label for="loginUsername"><i class="fa-solid fa-user me-2"></i>Username</label>
                                 </div>
 
@@ -345,7 +344,7 @@
                                 <div class="row g-2 mb-2">
                                     <div class="col-md-6">
                                         <div class="form-floating mb-2">
-                                            <input type="text" class="form-control" id="signupUsername" name="username" placeholder="Username" required>
+                                            <input type="text" class="form-control" id="signupUsername" name="username" placeholder="Username" autocapitalize="none" autocorrect="off" spellcheck="false" required>
                                             <label for="signupUsername">Username</label>
                                         </div>
                                     </div>
@@ -372,29 +371,20 @@
                                     </div>
                                 </div>
 
-                                <div class="row g-2 mb-2">
-                                    <div class="col-md-6">
-                                        <div class="form-floating mb-2">
-                                            <input type="text" class="form-control" id="signupDiscom" name="discom_name" placeholder="DISCOM Name" value="APSPDCL" required>
-                                            <label for="signupDiscom">DISCOM Name</label>
-                                        </div>
-                                    </div>
-                                    <div class="col-md-6">
+                                <div class="row g-2 mb-4">
+                                    <div class="col-md-4">
                                         <div class="form-floating mb-2">
                                             <input type="text" class="form-control" id="signupPhone" name="phone" placeholder="Phone" required>
                                             <label for="signupPhone">Contact Number</label>
                                         </div>
                                     </div>
-                                </div>
-
-                                <div class="row g-2 mb-4">
-                                    <div class="col-md-6">
+                                    <div class="col-md-4">
                                         <div class="form-floating mb-2">
                                             <input type="text" class="form-control" id="signupLocation" name="location" placeholder="Location" required>
                                             <label for="signupLocation">Transformer Location</label>
                                         </div>
                                     </div>
-                                    <div class="col-md-6">
+                                    <div class="col-md-4">
                                         <div class="form-floating mb-2">
                                             <input type="text" class="form-control" id="signupAssetId" name="transformer_id" placeholder="Transformer ID" value="TG-001" required>
                                             <label for="signupAssetId">Transformer Asset ID</label>
