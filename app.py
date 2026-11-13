@@ -433,8 +433,40 @@ def stop_alert():
     incident_id = data.get("incident_id")
 
     conn = get_db()
+    if not incident_id:
+        row = conn.execute("SELECT id FROM incidents WHERE user_id = ? AND status = 'ACTIVE' ORDER BY id DESC LIMIT 1", (user['id'],)).fetchone()
+        incident_id = row['id'] if row else None
+
     if incident_id:
         conn.execute("UPDATE incidents SET status = 'COMPLETED' WHERE id = ? AND user_id = ?", (incident_id, user['id']))
+
+        # Guarantee a playable MP4 video exists even if Safari MediaRecorder didn't upload one
+        existing_vid = conn.execute("SELECT id FROM captured_videos WHERE incident_id = ?", (incident_id,)).fetchone()
+        if not existing_vid:
+            imgs = conn.execute("SELECT file_path FROM captured_images WHERE incident_id = ? ORDER BY id ASC", (incident_id,)).fetchall()
+            frame_paths = [os.path.join(app.root_path, 'static', img['file_path']) for img in imgs if os.path.exists(os.path.join(app.root_path, 'static', img['file_path']))]
+            if frame_paths:
+                try:
+                    import imageio.v2 as imageio
+                    import numpy as np
+                    from PIL import Image
+
+                    filename = f"TG-{incident_id}_recording.mp4"
+                    filepath = os.path.join(VIDEO_FOLDER, filename)
+                    writer = imageio.get_writer(filepath, fps=2, codec='libx264', pixelformat='yuv420p')
+                    for fp in frame_paths:
+                        im = Image.open(fp).convert('RGB').resize((640, 480))
+                        # Hold each frame for 1 second (2 frames at 2 fps) so video plays smoothly
+                        arr = np.array(im)
+                        writer.append_data(arr)
+                        writer.append_data(arr)
+                    writer.close()
+
+                    rel_path = f"captured_videos/{filename}"
+                    conn.execute("CREATE TABLE IF NOT EXISTS captured_videos (id INTEGER PRIMARY KEY AUTOINCREMENT, incident_id INTEGER, file_path TEXT, created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP)")
+                    conn.execute("INSERT INTO captured_videos (incident_id, file_path) VALUES (?, ?)", (incident_id, rel_path))
+                except Exception as e:
+                    logging.error(f"Server-side MP4 video build failed: {e}")
     else:
         conn.execute("UPDATE incidents SET status = 'COMPLETED' WHERE user_id = ? AND status = 'ACTIVE'", (user['id'],))
     
