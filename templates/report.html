@@ -64,7 +64,7 @@
                         <option value="">-- Choose Incident Log --</option>
                         {% for inc in incidents %}
                         <option value="{{ inc.id }}" {% if selected and selected.id == inc.id %}selected{% endif %}>
-                            TG-{{ inc.id }} | {{ inc.incident_type }} | {{ inc.detected_time }} ({{ inc.threat_level }} ALERT)
+                            TG-{{ inc.user_seq }} | {{ inc.incident_type }} | {{ inc.detected_time }} ({{ inc.threat_level }} ALERT)
                         </option>
                         {% endfor %}
                     </select>

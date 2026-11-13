@@ -41,6 +41,10 @@ def get_current_user():
     conn.close()
     return user
 
+def get_user_incident_seq_map(conn, user_id):
+    rows = conn.execute("SELECT id FROM incidents WHERE user_id = ? ORDER BY id ASC", (user_id,)).fetchall()
+    return {row['id']: idx for idx, row in enumerate(rows, start=1)}
+
 # --- AUTHENTICATION & CORE ROUTES ---
 @app.route('/')
 def index():
@@ -182,6 +186,7 @@ def alerts():
         return redirect(url_for('login'))
 
     conn = get_db()
+    seq_map = get_user_incident_seq_map(conn, user['id'])
     alerts_list = conn.execute('''
         SELECT a.id as alert_id, a.status as alert_status, i.* 
         FROM alerts a
@@ -196,7 +201,7 @@ def alerts():
         imgs = conn.execute("SELECT * FROM captured_images WHERE incident_id = ? ORDER BY id ASC", (incident_id,)).fetchall()
         video_row = conn.execute("SELECT file_path FROM captured_videos WHERE incident_id = ? ORDER BY id DESC LIMIT 1", (incident_id,)).fetchone()
         video_path = video_row['file_path'] if video_row else None
-        alert_details.append({"alert": alt, "images": imgs, "video_path": video_path})
+        alert_details.append({"alert": alt, "user_seq": seq_map.get(incident_id, incident_id), "images": imgs, "video_path": video_path})
 
     alert_count = len(alerts_list)
     conn.close()
@@ -210,13 +215,14 @@ def history():
         return redirect(url_for('login'))
 
     conn = get_db()
+    seq_map = get_user_incident_seq_map(conn, user['id'])
     incidents = conn.execute("SELECT * FROM incidents WHERE user_id = ? ORDER BY id DESC", (user['id'],)).fetchall()
     history_details = []
     for inc in incidents:
         imgs = conn.execute("SELECT * FROM captured_images WHERE incident_id = ? ORDER BY id ASC", (inc['id'],)).fetchall()
         video_row = conn.execute("SELECT file_path FROM captured_videos WHERE incident_id = ? ORDER BY id DESC LIMIT 1", (inc['id'],)).fetchone()
         video_path = video_row['file_path'] if video_row else None
-        history_details.append({"incident": inc, "images": imgs, "video_path": video_path})
+        history_details.append({"incident": inc, "user_seq": seq_map.get(inc['id'], inc['id']), "images": imgs, "video_path": video_path})
 
     alert_count = conn.execute("SELECT COUNT(*) as count FROM alerts WHERE user_id = ? AND status = 'ACTIVE'", (user['id'],)).fetchone()['count']
     conn.close()
@@ -230,7 +236,14 @@ def report_page():
         return redirect(url_for('login'))
 
     conn = get_db()
-    incidents = conn.execute("SELECT * FROM incidents WHERE user_id = ? ORDER BY id DESC", (user['id'],)).fetchall()
+    seq_map = get_user_incident_seq_map(conn, user['id'])
+    raw_incidents = conn.execute("SELECT * FROM incidents WHERE user_id = ? ORDER BY id DESC", (user['id'],)).fetchall()
+    incidents = []
+    for inc in raw_incidents:
+        inc_dict = dict(inc)
+        inc_dict['user_seq'] = seq_map.get(inc['id'], inc['id'])
+        incidents.append(inc_dict)
+
     alert_count = conn.execute("SELECT COUNT(*) as count FROM alerts WHERE user_id = ? AND status = 'ACTIVE'", (user['id'],)).fetchone()['count']
 
     selected_incident = None
@@ -239,10 +252,12 @@ def report_page():
 
     incident_id = request.args.get('incident_id')
     if incident_id:
-        selected_incident = conn.execute("SELECT * FROM incidents WHERE id = ? AND user_id = ?", (incident_id, user['id'])).fetchone()
-        if selected_incident:
+        row = conn.execute("SELECT * FROM incidents WHERE id = ? AND user_id = ?", (incident_id, user['id'])).fetchone()
+        if row:
+            selected_incident = dict(row)
+            selected_incident['user_seq'] = seq_map.get(row['id'], row['id'])
             captured_images = conn.execute("SELECT * FROM captured_images WHERE incident_id = ? ORDER BY id ASC", (selected_incident['id'],)).fetchall()
-            v_row = conn.execute("SELECT file_path FROM captured_videos WHERE incident_id = ?", (selected_incident['id'],)).fetchone()
+            v_row = conn.execute("SELECT file_path FROM captured_videos WHERE incident_id = ? ORDER BY id DESC LIMIT 1", (selected_incident['id'],)).fetchone()
             video_path = v_row['file_path'] if v_row else None
 
     conn.close()
@@ -591,19 +606,20 @@ def generate_report():
     report_type = data.get("report_type")
 
     conn = get_db()
+    seq_map = get_user_incident_seq_map(conn, user['id'])
     incident = conn.execute("SELECT * FROM incidents WHERE id = ? AND user_id = ?", (incident_id, user['id'])).fetchone()
     if not incident:
         conn.close()
         return jsonify({"success": False, "message": "Incident not found"}), 404
 
     imgs = conn.execute("SELECT * FROM captured_images WHERE incident_id = ?", (incident['id'],)).fetchall()
-    v_row = conn.execute("SELECT file_path FROM captured_videos WHERE incident_id = ?", (incident['id'],)).fetchone()
+    v_row = conn.execute("SELECT file_path FROM captured_videos WHERE incident_id = ? ORDER BY id DESC LIMIT 1", (incident['id'],)).fetchone()
     video_rel_path = v_row['file_path'] if v_row else None
 
     conn.close()
 
     report_facts = {
-        "id": incident['id'],
+        "id": seq_map.get(incident['id'], incident['id']),
         "owner_name": user['owner_name'] or user['username'],
         "phone": user['phone'],
         "email": user['email'],

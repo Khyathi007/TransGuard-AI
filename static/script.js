@@ -231,7 +231,8 @@ function uploadRecordedVideo() {
 
     fetch('/api/upload_video', {
         method: 'POST',
-        body: formData
+        body: formData,
+        keepalive: true
     })
     .then(res => res.json())
     .then(data => console.log("Recorded video stored to server successfully:", data.video_path))
