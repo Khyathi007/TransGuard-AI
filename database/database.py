@@ -31,6 +31,13 @@ def init_db():
             created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
         );
     ''')
+
+    # Safely add missing columns if an older database.db exists on Render
+    existing_cols = [row[1] for row in cursor.execute("PRAGMA table_info(users)").fetchall()]
+    if 'owner_name' not in existing_cols:
+        cursor.execute("ALTER TABLE users ADD COLUMN owner_name TEXT;")
+    if 'discom_name' not in existing_cols:
+        cursor.execute("ALTER TABLE users ADD COLUMN discom_name TEXT DEFAULT 'APSPDCL';")
     
     # 2. Transformers Table
     cursor.execute('''
