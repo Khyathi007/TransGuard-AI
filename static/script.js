@@ -43,6 +43,8 @@ function startCameraAndRecording(incidentId) {
     const overlayEl = document.getElementById('camera-overlay-box');
     if (!videoEl || !canvasEl) return;
 
+    if (mediaRecorder && mediaRecorder.state === 'recording') return;
+
     navigator.mediaDevices.getUserMedia({ 
         video: { width: { ideal: 1280 }, height: { ideal: 720 } }, 
         audio: false 
@@ -75,33 +77,20 @@ function startCameraAndRecording(incidentId) {
 
             // 2. Record directly from live camera stream (guarantees Safari + Chrome produce valid video bytes)
             recordedChunks = [];
-            const candidateTypes = [
-                'video/mp4;codecs=avc1',
-                'video/mp4',
-                'video/webm;codecs=vp9',
-                'video/webm;codecs=vp8',
-                'video/webm'
-            ];
-            const selectedMime = candidateTypes.find(type => MediaRecorder.isTypeSupported(type)) || '';
-
             try {
-                mediaRecorder = selectedMime
-                    ? new MediaRecorder(stream, { mimeType: selectedMime })
-                    : new MediaRecorder(stream);
-            } catch (e) {
                 mediaRecorder = new MediaRecorder(stream);
+            } catch (e) {
+                console.error("MediaRecorder error:", e);
             }
 
-            mediaRecorder.ondataavailable = event => {
-                if (event.data && event.data.size > 0) {
-                    recordedChunks.push(event.data);
-                }
-            };
-
-            mediaRecorder.onstop = uploadRecordedVideo;
-            
-            // Collect chunks every 500ms
-            mediaRecorder.start(500);
+            if (mediaRecorder) {
+                mediaRecorder.ondataavailable = event => {
+                    if (event.data && event.data.size > 0) {
+                        recordedChunks.push(event.data);
+                    }
+                };
+                mediaRecorder.start(1000);
+            }
 
             // 3. Still image capture loop
             captureCount = 0;
@@ -192,21 +181,39 @@ function stopCamera() {
     }
 
     const streamToStop = mediaStream;
+    const incidentIdToSave = currentActiveIncidentId;
     mediaStream = null;
 
+    const tag = document.getElementById('cam-status-tag');
+
     if (mediaRecorder && mediaRecorder.state !== 'inactive') {
-        try {
-            mediaRecorder.requestData();
-        } catch (e) {}
+        if (tag) {
+            tag.innerText = 'SAVING VIDEO...';
+            tag.style.background = '#fef3c7';
+            tag.style.color = '#b45309';
+        }
         mediaRecorder.onstop = () => {
-            uploadRecordedVideo();
-            if (streamToStop) {
-                streamToStop.getTracks().forEach(track => track.stop());
-            }
+            uploadRecordedVideo(incidentIdToSave).finally(() => {
+                if (streamToStop) {
+                    streamToStop.getTracks().forEach(track => track.stop());
+                }
+                if (tag) {
+                    tag.innerText = 'STANDBY';
+                    tag.style.background = '#f1f5f9';
+                    tag.style.color = '#64748b';
+                }
+            });
         };
         mediaRecorder.stop();
-    } else if (streamToStop) {
-        streamToStop.getTracks().forEach(track => track.stop());
+    } else {
+        if (streamToStop) {
+            streamToStop.getTracks().forEach(track => track.stop());
+        }
+        if (tag) {
+            tag.innerText = 'STANDBY';
+            tag.style.background = '#f1f5f9';
+            tag.style.color = '#64748b';
+        }
     }
 
     const videoEl = document.getElementById('webcam-feed');
@@ -214,30 +221,25 @@ function stopCamera() {
 
     const overlayEl = document.getElementById('camera-overlay-box');
     if (overlayEl) overlayEl.style.display = 'block';
-
-    const tag = document.getElementById('cam-status-tag');
-    if (tag) {
-        tag.innerText = 'STANDBY';
-        tag.style.background = '#f1f5f9';
-        tag.style.color = '#64748b';
-    }
 }
 
 // Upload full-length video to server silently
-function uploadRecordedVideo() {
-    if (recordedChunks.length === 0 || !currentActiveIncidentId) return;
+function uploadRecordedVideo(incidentIdOverride) {
+    const targetIncidentId = incidentIdOverride || currentActiveIncidentId;
+    if (recordedChunks.length === 0 || !targetIncidentId) return Promise.resolve();
 
-    const mime = (mediaRecorder && mediaRecorder.mimeType) || 'video/mp4';
+    const mime = (mediaRecorder && mediaRecorder.mimeType) || (recordedChunks[0] && recordedChunks[0].type) || 'video/mp4';
     const ext = mime.includes('webm') ? 'webm' : 'mp4';
 
     const rawBlob = new Blob(recordedChunks, { type: mime });
-    if (rawBlob.size === 0) return;
+    recordedChunks = [];
+    if (rawBlob.size === 0) return Promise.resolve();
 
     const formData = new FormData();
-    formData.append('video', rawBlob, `incident_${currentActiveIncidentId}.${ext}`);
-    formData.append('incident_id', currentActiveIncidentId);
+    formData.append('video', rawBlob, `incident_${targetIncidentId}.${ext}`);
+    formData.append('incident_id', targetIncidentId);
 
-    fetch('/api/upload_video', {
+    return fetch('/api/upload_video', {
         method: 'POST',
         body: formData
     })
@@ -255,6 +257,7 @@ function openTestIncidentModal() {
     .then(res => res.json())
     .then(data => {
         if (data.success) {
+            activeAlertTriggered = true;
             startSirenSound();
             startCameraAndRecording(data.incident_id);
             pollDashboardState();
@@ -369,6 +372,7 @@ function stopSirenSound() {
 
 function stopAlertManually() {
     stopSirenSound();
+    activeAlertTriggered = false;
     stopCamera();
     document.body.classList.remove('alert-active');
     fetch('/api/stop_alert', {
