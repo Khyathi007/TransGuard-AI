@@ -440,23 +440,34 @@ def stop_alert():
     if incident_id:
         conn.execute("UPDATE incidents SET status = 'COMPLETED' WHERE id = ? AND user_id = ?", (incident_id, user['id']))
 
-        # Guarantee a playable MP4 video exists even if Safari MediaRecorder didn't upload one
+        # Build playable H.264 MP4 video with crisp burned-in timestamp on every frame
         existing_vid = conn.execute("SELECT id FROM captured_videos WHERE incident_id = ?", (incident_id,)).fetchone()
         if not existing_vid:
-            imgs = conn.execute("SELECT file_path FROM captured_images WHERE incident_id = ? ORDER BY id ASC", (incident_id,)).fetchall()
-            frame_paths = [os.path.join(app.root_path, 'static', img['file_path']) for img in imgs if os.path.exists(os.path.join(app.root_path, 'static', img['file_path']))]
-            if frame_paths:
+            imgs = conn.execute("SELECT file_path, captured_at FROM captured_images WHERE incident_id = ? ORDER BY id ASC", (incident_id,)).fetchall()
+            valid_imgs = [
+                (os.path.join(app.root_path, 'static', img['file_path']), img['captured_at'])
+                for img in imgs
+                if os.path.exists(os.path.join(app.root_path, 'static', img['file_path']))
+            ]
+            if valid_imgs:
                 try:
                     import imageio.v2 as imageio
                     import numpy as np
-                    from PIL import Image
+                    from PIL import Image, ImageDraw, ImageFont
 
                     filename = f"TG-{incident_id}_recording.mp4"
                     filepath = os.path.join(VIDEO_FOLDER, filename)
                     writer = imageio.get_writer(filepath, fps=2, codec='libx264', pixelformat='yuv420p')
-                    for fp in frame_paths:
+                    font = ImageFont.load_default()
+
+                    for fp, cap_time in valid_imgs:
                         im = Image.open(fp).convert('RGB').resize((640, 480))
-                        # Hold each frame for 1 second (2 frames at 2 fps) so video plays smoothly
+                        draw = ImageDraw.Draw(im)
+                        # High-contrast top-left timestamp banner burned directly onto video
+                        draw.rectangle([(12, 12), (280, 42)], fill=(15, 23, 42))
+                        draw.rectangle([(12, 12), (17, 42)], fill=(34, 197, 94))
+                        draw.text((24, 21), f"REC | {cap_time}", fill=(255, 255, 255), font=font)
+
                         arr = np.array(im)
                         writer.append_data(arr)
                         writer.append_data(arr)
