@@ -35,7 +35,7 @@ function updateClock() {
 }
 setInterval(updateClock, 1000);
 
-// Immediate Camera Stream & Continuous Timestamped Canvas Recording (.WEBM / .MP4)
+// Immediate Camera Stream & Continuous Recording (.MP4 / .WEBM)
 function startCameraAndRecording(incidentId) {
     currentActiveIncidentId = incidentId;
     const videoEl = document.getElementById('webcam-feed');
@@ -63,7 +63,7 @@ function startCameraAndRecording(incidentId) {
                 tag.style.color = '#15803d';
             }
 
-            // 1. Continuous high-fps canvas render loop (Pushes live frames + timestamps continuously)
+            // 1. Continuous high-fps canvas render loop (for timestamped snapshots)
             function renderLoop() {
                 if (mediaStream && !videoEl.paused && !videoEl.ended) {
                     drawTimestampToCanvas(videoEl, canvasEl);
@@ -73,26 +73,23 @@ function startCameraAndRecording(incidentId) {
             if (animFrameId) cancelAnimationFrame(animFrameId);
             renderLoop();
 
-            // 2. Capture live stream from canvas (30 FPS)
-            const canvasStream = canvasEl.captureStream(30);
+            // 2. Record directly from live camera stream (guarantees Safari + Chrome produce valid video bytes)
             recordedChunks = [];
-
-            // Prioritize WebM for Render & universal browser playback, with MP4 fallback for Safari
             const candidateTypes = [
+                'video/mp4;codecs=avc1',
+                'video/mp4',
                 'video/webm;codecs=vp9',
                 'video/webm;codecs=vp8',
-                'video/webm',
-                'video/mp4;codecs=avc1',
-                'video/mp4'
+                'video/webm'
             ];
             const selectedMime = candidateTypes.find(type => MediaRecorder.isTypeSupported(type)) || '';
 
             try {
                 mediaRecorder = selectedMime
-                    ? new MediaRecorder(canvasStream, { mimeType: selectedMime })
-                    : new MediaRecorder(canvasStream);
+                    ? new MediaRecorder(stream, { mimeType: selectedMime })
+                    : new MediaRecorder(stream);
             } catch (e) {
-                mediaRecorder = new MediaRecorder(canvasStream);
+                mediaRecorder = new MediaRecorder(stream);
             }
 
             mediaRecorder.ondataavailable = event => {
@@ -103,8 +100,8 @@ function startCameraAndRecording(incidentId) {
 
             mediaRecorder.onstop = uploadRecordedVideo;
             
-            // Collect chunks continuously without time cutoff
-            mediaRecorder.start(250);
+            // Collect chunks every 500ms
+            mediaRecorder.start(500);
 
             // 3. Still image capture loop
             captureCount = 0;
@@ -194,14 +191,24 @@ function stopCamera() {
         animFrameId = null;
     }
 
+    const streamToStop = mediaStream;
+    mediaStream = null;
+
     if (mediaRecorder && mediaRecorder.state !== 'inactive') {
+        try {
+            mediaRecorder.requestData();
+        } catch (e) {}
+        mediaRecorder.onstop = () => {
+            uploadRecordedVideo();
+            if (streamToStop) {
+                streamToStop.getTracks().forEach(track => track.stop());
+            }
+        };
         mediaRecorder.stop();
+    } else if (streamToStop) {
+        streamToStop.getTracks().forEach(track => track.stop());
     }
 
-    if (mediaStream) {
-        mediaStream.getTracks().forEach(track => track.stop());
-        mediaStream = null;
-    }
     const videoEl = document.getElementById('webcam-feed');
     if (videoEl) videoEl.srcObject = null;
 
@@ -220,10 +227,11 @@ function stopCamera() {
 function uploadRecordedVideo() {
     if (recordedChunks.length === 0 || !currentActiveIncidentId) return;
 
-    const mime = (mediaRecorder && mediaRecorder.mimeType) || 'video/webm';
-    const ext = mime.includes('mp4') ? 'mp4' : 'webm';
+    const mime = (mediaRecorder && mediaRecorder.mimeType) || 'video/mp4';
+    const ext = mime.includes('webm') ? 'webm' : 'mp4';
 
     const rawBlob = new Blob(recordedChunks, { type: mime });
+    if (rawBlob.size === 0) return;
 
     const formData = new FormData();
     formData.append('video', rawBlob, `incident_${currentActiveIncidentId}.${ext}`);
@@ -231,8 +239,7 @@ function uploadRecordedVideo() {
 
     fetch('/api/upload_video', {
         method: 'POST',
-        body: formData,
-        keepalive: true
+        body: formData
     })
     .then(res => res.json())
     .then(data => console.log("Recorded video stored to server successfully:", data.video_path))
