@@ -35,7 +35,7 @@ function updateClock() {
 }
 setInterval(updateClock, 1000);
 
-// Immediate Camera Stream & Continuous Timestamped Canvas Recording (.MP4 / .WEBM)
+// Immediate Camera Stream & Continuous Timestamped Canvas Recording (.WEBM / .MP4)
 function startCameraAndRecording(incidentId) {
     currentActiveIncidentId = incidentId;
     const videoEl = document.getElementById('webcam-feed');
@@ -77,20 +77,20 @@ function startCameraAndRecording(incidentId) {
             const canvasStream = canvasEl.captureStream(30);
             recordedChunks = [];
 
-            // MIME type selection with broad browser fallback support
-            let mimeType = 'video/mp4;codecs=avc1';
-            if (!MediaRecorder.isTypeSupported(mimeType)) {
-                mimeType = 'video/mp4';
-            }
-            if (!MediaRecorder.isTypeSupported(mimeType)) {
-                mimeType = 'video/webm;codecs=vp9';
-            }
-            if (!MediaRecorder.isTypeSupported(mimeType)) {
-                mimeType = 'video/webm';
-            }
+            // Prioritize WebM for Render & universal browser playback, with MP4 fallback for Safari
+            const candidateTypes = [
+                'video/webm;codecs=vp9',
+                'video/webm;codecs=vp8',
+                'video/webm',
+                'video/mp4;codecs=avc1',
+                'video/mp4'
+            ];
+            const selectedMime = candidateTypes.find(type => MediaRecorder.isTypeSupported(type)) || '';
 
             try {
-                mediaRecorder = new MediaRecorder(canvasStream, { mimeType: mimeType });
+                mediaRecorder = selectedMime
+                    ? new MediaRecorder(canvasStream, { mimeType: selectedMime })
+                    : new MediaRecorder(canvasStream);
             } catch (e) {
                 mediaRecorder = new MediaRecorder(canvasStream);
             }
@@ -220,7 +220,7 @@ function stopCamera() {
 function uploadRecordedVideo() {
     if (recordedChunks.length === 0 || !currentActiveIncidentId) return;
 
-    const mime = mediaRecorder ? mediaRecorder.mimeType : 'video/mp4';
+    const mime = (mediaRecorder && mediaRecorder.mimeType) || 'video/webm';
     const ext = mime.includes('mp4') ? 'mp4' : 'webm';
 
     const rawBlob = new Blob(recordedChunks, { type: mime });
