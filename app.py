@@ -440,47 +440,46 @@ def stop_alert():
     if incident_id:
         conn.execute("UPDATE incidents SET status = 'COMPLETED' WHERE id = ? AND user_id = ?", (incident_id, user['id']))
 
-        # Build playable H.264 MP4 video with large, crisp burned-in timestamp on every frame
-        existing_vid = conn.execute("SELECT id FROM captured_videos WHERE incident_id = ?", (incident_id,)).fetchone()
-        if not existing_vid:
-            imgs = conn.execute("SELECT file_path, captured_at FROM captured_images WHERE incident_id = ? ORDER BY id ASC", (incident_id,)).fetchall()
-            valid_imgs = [
-                (os.path.join(app.root_path, 'static', img['file_path']), img['captured_at'])
-                for img in imgs
-                if os.path.exists(os.path.join(app.root_path, 'static', img['file_path']))
-            ]
-            if valid_imgs:
+        # Always generate H.264 MP4 video with crisp burned-in timestamp on every frame
+        imgs = conn.execute("SELECT file_path, captured_at FROM captured_images WHERE incident_id = ? ORDER BY id ASC", (incident_id,)).fetchall()
+        valid_imgs = [
+            (os.path.join(app.root_path, 'static', img['file_path']), img['captured_at'])
+            for img in imgs
+            if os.path.exists(os.path.join(app.root_path, 'static', img['file_path']))
+        ]
+        if valid_imgs:
+            try:
+                import imageio.v2 as imageio
+                import numpy as np
+                from PIL import Image, ImageDraw, ImageFont
+
+                filename = f"TG-{incident_id}_recording.mp4"
+                filepath = os.path.join(VIDEO_FOLDER, filename)
+                writer = imageio.get_writer(filepath, fps=2, codec='libx264', pixelformat='yuv420p')
                 try:
-                    import imageio.v2 as imageio
-                    import numpy as np
-                    from PIL import Image, ImageDraw, ImageFont
+                    font = ImageFont.load_default(size=22)
+                except TypeError:
+                    font = ImageFont.load_default()
 
-                    filename = f"TG-{incident_id}_recording.mp4"
-                    filepath = os.path.join(VIDEO_FOLDER, filename)
-                    writer = imageio.get_writer(filepath, fps=2, codec='libx264', pixelformat='yuv420p')
-                    try:
-                        font = ImageFont.load_default(size=22)
-                    except TypeError:
-                        font = ImageFont.load_default()
+                for fp, cap_time in valid_imgs:
+                    im = Image.open(fp).convert('RGB').resize((640, 480))
+                    draw = ImageDraw.Draw(im)
+                    # Large high-contrast top-left timestamp banner burned onto video
+                    draw.rectangle([(10, 10), (390, 52)], fill=(15, 23, 42))
+                    draw.rectangle([(10, 10), (18, 52)], fill=(34, 197, 94))
+                    draw.text((28, 20), f"REC | {cap_time}", fill=(255, 255, 255), font=font)
 
-                    for fp, cap_time in valid_imgs:
-                        im = Image.open(fp).convert('RGB').resize((640, 480))
-                        draw = ImageDraw.Draw(im)
-                        # Large high-contrast top-left timestamp banner burned onto video
-                        draw.rectangle([(10, 10), (390, 52)], fill=(15, 23, 42))
-                        draw.rectangle([(10, 10), (18, 52)], fill=(34, 197, 94))
-                        draw.text((28, 20), f"REC | {cap_time}", fill=(255, 255, 255), font=font)
+                    arr = np.array(im)
+                    writer.append_data(arr)
+                    writer.append_data(arr)
+                writer.close()
 
-                        arr = np.array(im)
-                        writer.append_data(arr)
-                        writer.append_data(arr)
-                    writer.close()
-
-                    rel_path = f"captured_videos/{filename}"
-                    conn.execute("CREATE TABLE IF NOT EXISTS captured_videos (id INTEGER PRIMARY KEY AUTOINCREMENT, incident_id INTEGER, file_path TEXT, created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP)")
-                    conn.execute("INSERT INTO captured_videos (incident_id, file_path) VALUES (?, ?)", (incident_id, rel_path))
-                except Exception as e:
-                    logging.error(f"Server-side MP4 video build failed: {e}")
+                rel_path = f"captured_videos/{filename}"
+                conn.execute("CREATE TABLE IF NOT EXISTS captured_videos (id INTEGER PRIMARY KEY AUTOINCREMENT, incident_id INTEGER, file_path TEXT, created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP)")
+                conn.execute("DELETE FROM captured_videos WHERE incident_id = ?", (incident_id,))
+                conn.execute("INSERT INTO captured_videos (incident_id, file_path) VALUES (?, ?)", (incident_id, rel_path))
+            except Exception as e:
+                logging.error(f"Server-side MP4 video build failed: {e}")
     else:
         conn.execute("UPDATE incidents SET status = 'COMPLETED' WHERE user_id = ? AND status = 'ACTIVE'", (user['id'],))
     
