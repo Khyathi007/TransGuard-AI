@@ -423,7 +423,7 @@ def poll_dashboard():
     conn.close()
     return jsonify({"authenticated": True, "has_active": False, "alert_count": alert_count, "captured_count": 0})
 
-@@app.route('/api/stop_alert', methods=['POST'])
+@app.route('/api/stop_alert', methods=['POST'])
 def stop_alert():
     user = get_current_user()
     if not user:
