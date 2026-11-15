@@ -5,3 +5,8 @@ requests==2.31.0
 Werkzeug==3.0.1
 gunicorn==21.2.0
 reportlab
+imageio[ffmpeg]
+Pillow
+Flask
+Flask-Cors
+sqlite3
