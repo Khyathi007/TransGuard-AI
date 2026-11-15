@@ -9,4 +9,3 @@ imageio[ffmpeg]
 Pillow
 Flask
 Flask-Cors
-sqlite3
