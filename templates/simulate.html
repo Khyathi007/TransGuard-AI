@@ -10,15 +10,12 @@
         </div>
     </div>
 
-    <!-- Embedded Live Circuit Workspace View -->
-    <div class="card shadow-sm border-0 overflow-hidden" style="height: 75vh;">
-        <div class="card-body p-0 h-100">
-            <iframe 
-                src="https://app.cirkitdesigner.com" 
-                class="w-100 h-100 border-0"
-                allow="camera; microphone; clipboard-write">
-            </iframe>
+    <!-- Embedded Cirkit Project Workspace -->
+    <div class="card shadow-sm border-0 overflow-hidden p-3 bg-white">
+        <div style="position: relative; width: 100%; padding-top: calc(max(56.25%, 400px));">
+          <iframe src="https://app.cirkitdesigner.com/project/1616a498-2390-439b-80dc-2d29ee05fa4d?view=interactive_preview" style="position: absolute; top: 0; left: 0; width: 100%; height: 100%; border: none;"></iframe>
         </div>
+        <p style="margin-top: 10px;" class="text-muted small mb-0">Edit this project interactively in <a href="https://app.cirkitdesigner.com/project/1616a498-2390-439b-80dc-2d29ee05fa4d" target="_blank">Cirkit Designer</a>.</p>
     </div>
 </div>
 {% endblock %}
