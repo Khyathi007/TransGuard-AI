@@ -35,7 +35,7 @@ function updateClock() {
 }
 setInterval(updateClock, 1000);
 
-// Immediate Camera Stream & Continuous Recording (.MP4 / .WEBM)
+// Immediate Camera Stream & Continuous Recording with MediaRecorder Timestamp Overlay
 function startCameraAndRecording(incidentId) {
     currentActiveIncidentId = incidentId;
     const videoEl = document.getElementById('webcam-feed');
@@ -65,7 +65,7 @@ function startCameraAndRecording(incidentId) {
                 tag.style.color = '#15803d';
             }
 
-            // 1. Continuous high-fps canvas render loop (for timestamped snapshots)
+            // 1. Continuous high-fps canvas render loop (burning live timestamp onto video/snapshots)
             function renderLoop() {
                 if (mediaStream && !videoEl.paused && !videoEl.ended) {
                     drawTimestampToCanvas(videoEl, canvasEl);
@@ -75,32 +75,43 @@ function startCameraAndRecording(incidentId) {
             if (animFrameId) cancelAnimationFrame(animFrameId);
             renderLoop();
 
-            // 2. Record directly from live camera stream (guarantees Safari + Chrome produce valid video bytes)
-            recordedChunks = [];
+            // 2. Start browser MediaRecorder using the canvas stream so recorded video has the burned-in timestamp!
             try {
-                mediaRecorder = new MediaRecorder(stream);
-            } catch (e) {
-                console.error("MediaRecorder error:", e);
-            }
+                const canvasStream = canvasEl.captureStream(30); // 30 FPS canvas stream with burned-in timestamp
+                recordedChunks = [];
+                let options = { mimeType: 'video/webm;codecs=vp9' };
+                if (!MediaRecorder.isTypeSupported(options.mimeType)) {
+                    options = { mimeType: 'video/webm' };
+                    if (!MediaRecorder.isTypeSupported(options.mimeType)) {
+                        options = {}; // default fallback
+                    }
+                }
 
-            if (mediaRecorder) {
-                mediaRecorder.ondataavailable = event => {
+                mediaRecorder = new MediaRecorder(canvasStream, options);
+                mediaRecorder.ondataavailable = (event) => {
                     if (event.data && event.data.size > 0) {
                         recordedChunks.push(event.data);
                     }
                 };
-                mediaRecorder.start(1000);
+                mediaRecorder.onstop = () => {
+                    uploadRecordedVideo(incidentId);
+                };
+                mediaRecorder.start(1000); // Collect chunks every 1 second
+            } catch (err) {
+                console.warn("MediaRecorder canvas stream initialization failed:", err);
             }
 
-            // 3. Still image capture loop
+            // 3. Capture timestamped still frames every 1 second
+            recordedChunks = [];
             captureCount = 0;
+            captureFrame(videoEl, canvasEl, incidentId);
             const captureInterval = setInterval(() => {
                 if (captureCount >= MAX_CAPTURES || !mediaStream) {
                     clearInterval(captureInterval);
                     return;
                 }
                 captureFrame(videoEl, canvasEl, incidentId);
-            }, 2000);
+            }, 1000);
         };
     })
     .catch(err => console.warn("Camera access denied or unavailable:", err));
@@ -125,20 +136,20 @@ function drawTimestampToCanvas(video, canvas) {
     const now = new Date();
     const timestampStr = now.toLocaleDateString('en-GB', { day: '2-digit', month: 'short', year: 'numeric' }) + " " + now.toLocaleTimeString();
 
-    const boxWidth = 300;
-    const boxHeight = 38;
+    const boxWidth = 320;
+    const boxHeight = 42;
     const paddingX = 14;
-    const paddingY = height - 52;
+    const paddingY = height - 56;
 
-    ctx.fillStyle = "rgba(15, 23, 42, 0.95)";
+    ctx.fillStyle = "rgba(15, 23, 42, 0.92)";
     ctx.fillRect(paddingX, paddingY, boxWidth, boxHeight);
 
     ctx.fillStyle = "#22c55e"; // Accent green border bar
-    ctx.fillRect(paddingX, paddingY, 5, boxHeight);
+    ctx.fillRect(paddingX, paddingY, 6, boxHeight);
 
-    ctx.font = "bold 15px -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif";
+    ctx.font = "bold 16px -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif";
     ctx.fillStyle = "#ffffff";
-    ctx.fillText("📷 " + timestampStr, paddingX + 14, paddingY + 25);
+    ctx.fillText("REC | " + timestampStr, paddingX + 16, paddingY + 27);
 }
 
 function captureFrame(video, canvas, incidentId) {
@@ -180,40 +191,23 @@ function stopCamera() {
         animFrameId = null;
     }
 
-    const streamToStop = mediaStream;
-    const incidentIdToSave = currentActiveIncidentId;
-    mediaStream = null;
+    if (mediaRecorder && mediaRecorder.state === 'recording') {
+        try {
+            mediaRecorder.stop();
+        } catch(e) {}
+    }
+    mediaRecorder = null;
+
+    if (mediaStream) {
+        mediaStream.getTracks().forEach(track => track.stop());
+        mediaStream = null;
+    }
 
     const tag = document.getElementById('cam-status-tag');
-
-    if (mediaRecorder && mediaRecorder.state !== 'inactive') {
-        if (tag) {
-            tag.innerText = 'SAVING VIDEO...';
-            tag.style.background = '#fef3c7';
-            tag.style.color = '#b45309';
-        }
-        mediaRecorder.onstop = () => {
-            uploadRecordedVideo(incidentIdToSave).finally(() => {
-                if (streamToStop) {
-                    streamToStop.getTracks().forEach(track => track.stop());
-                }
-                if (tag) {
-                    tag.innerText = 'STANDBY';
-                    tag.style.background = '#f1f5f9';
-                    tag.style.color = '#64748b';
-                }
-            });
-        };
-        mediaRecorder.stop();
-    } else {
-        if (streamToStop) {
-            streamToStop.getTracks().forEach(track => track.stop());
-        }
-        if (tag) {
-            tag.innerText = 'STANDBY';
-            tag.style.background = '#f1f5f9';
-            tag.style.color = '#64748b';
-        }
+    if (tag) {
+        tag.innerText = 'STANDBY';
+        tag.style.background = '#f1f5f9';
+        tag.style.color = '#64748b';
     }
 
     const videoEl = document.getElementById('webcam-feed');
@@ -228,8 +222,8 @@ function uploadRecordedVideo(incidentIdOverride) {
     const targetIncidentId = incidentIdOverride || currentActiveIncidentId;
     if (recordedChunks.length === 0 || !targetIncidentId) return Promise.resolve();
 
-    const mime = (mediaRecorder && mediaRecorder.mimeType) || (recordedChunks[0] && recordedChunks[0].type) || 'video/mp4';
-    const ext = mime.includes('webm') ? 'webm' : 'mp4';
+    const mime = (mediaRecorder && mediaRecorder.mimeType) || (recordedChunks[0] && recordedChunks[0].type) || 'video/webm';
+    const ext = mime.includes('mp4') ? 'mp4' : 'webm';
 
     const rawBlob = new Blob(recordedChunks, { type: mime });
     recordedChunks = [];
@@ -327,7 +321,7 @@ function pollDashboardState() {
                             </svg>
                         </div>
                         <div class="shield-title" style="color: var(--accent-red);">UNAUTHORIZED ACCESS</div>
-                        <div class="shield-desc">Transformer breach detected. Recording live video feed.</div>
+                        <div class="shield-desc">Transformer breach detected. Recording live video feed with timestamp.</div>
                     `;
                 }
             } else {
@@ -373,13 +367,24 @@ function stopSirenSound() {
 function stopAlertManually() {
     stopSirenSound();
     activeAlertTriggered = false;
-    stopCamera();
+    
+    // Stop camera and trigger MediaRecorder to finalize and upload the recorded video
+    if (mediaRecorder && mediaRecorder.state === 'recording') {
+        mediaRecorder.stop();
+    } else {
+        stopCamera();
+    }
+
     document.body.classList.remove('alert-active');
-    fetch('/api/stop_alert', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ incident_id: currentActiveIncidentId })
-    }).then(() => pollDashboardState());
+    
+    // Give 400ms for video upload blob to fire, then call stop_alert API
+    setTimeout(() => {
+        fetch('/api/stop_alert', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ incident_id: currentActiveIncidentId })
+        }).then(() => pollDashboardState());
+    }, 400);
 }
 
 function triggerSimulatedAlertModal(chosenResponse) {
