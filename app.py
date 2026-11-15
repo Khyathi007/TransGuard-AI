@@ -18,6 +18,7 @@ logging.basicConfig(level=logging.INFO, format='%(asctime)s [%(levelname)s] %(me
 load_dotenv()
 
 app = Flask(__name__)
+CORS(app)
 app.secret_key = os.getenv("SECRET_KEY", "transguard_enterprise_secure_key_2026")
 
 UPLOAD_FOLDER = os.path.join(app.root_path, 'static', 'captured_images')

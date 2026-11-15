@@ -4,81 +4,21 @@
     <div class="row mb-4">
         <div class="col-12 d-flex justify-content-between align-items-center">
             <div>
-                <h2 class="fw-bold mb-1">⚡ IoT Hardware & Simulator Console</h2>
-                <p class="text-muted mb-0">Live telemetry and ESP32 node connection status for TransGuard AI.</p>
-            </div>
-            <div>
-                <button class="btn btn-danger btn-shadow" onclick="triggerHardwareBreach()">
-                    <i class="bi bi-broadcast me-2"></i> Test Remote Breach Signal
-                </button>
+                <h2 class="fw-bold mb-1">⚡ Cirkit Designer IoT Simulator</h2>
+                <p class="text-muted mb-0">Live hardware circuit board simulation and breach trigger console.</p>
             </div>
         </div>
     </div>
 
-    <div class="row">
-        <div class="col-lg-8 mb-4">
-            <div class="card shadow-sm border-0">
-                <div class="card-header bg-white py-3">
-                    <h5 class="mb-0 fw-bold text-dark"><i class="bi bi-terminal me-2"></i> ESP32 Serial Monitor & Live Logs</h5>
-                </div>
-                <div class="card-body bg-dark text-success font-monospace rounded p-3" style="height: 320px; overflow-y: auto; font-size: 13px;">
-                    [INFO] ESP32-WROOM-32 Booting firmware v3.1...<br>
-                    [INFO] Initializing GPIO 13 (MC-38 Magnetic Door Reed Switch)...<br>
-                    [INFO] Initializing GPIO 12 (Active Buzzer) & GPIO 2 (Status LED)...<br>
-                    [INFO] Connecting to Wi-Fi SSID: Wokwi-GUEST...<br>
-                    [SUCCESS] Wi-Fi Connected! IP Address: 192.168.1.104<br>
-                    [SUCCESS] TLS Handshake with https://transguard-ai-5ize.onrender.com established.<br>
-                    <span class="text-warning">[MONITORING] Cabinet door secure (HIGH). Waiting for state change...</span>
-                </div>
-            </div>
-        </div>
-        <div class="col-lg-4 mb-4">
-            <div class="card shadow-sm border-0">
-                <div class="card-header bg-white py-3">
-                    <h5 class="mb-0 fw-bold text-dark"><i class="bi bi-hdd-network me-2"></i> Node Specifications</h5>
-                </div>
-                <div class="card-body">
-                    <ul class="list-group list-group-flush">
-                        <li class="list-group-item d-flex justify-content-between px-0">
-                            <span>Target Node ID</span>
-                            <span class="badge bg-primary">TG-001</span>
-                        </li>
-                        <li class="list-group-item d-flex justify-content-between px-0">
-                            <span>Sensor Type</span>
-                            <span>MC-38 Magnetic Switch</span>
-                        </li>
-                        <li class="list-group-item d-flex justify-content-between px-0">
-                            <span>Endpoint URL</span>
-                            <code class="text-muted small">/api/trigger_alert</code>
-                        </li>
-                        <li class="list-group-item d-flex justify-content-between px-0">
-                            <span>Cloud Sync Status</span>
-                            <span class="text-success fw-bold">ONLINE (RENDER)</span>
-                        </li>
-                    </ul>
-                </div>
-            </div>
+    <!-- Embedded Live Circuit Workspace View -->
+    <div class="card shadow-sm border-0 overflow-hidden" style="height: 75vh;">
+        <div class="card-body p-0 h-100">
+            <iframe 
+                src="https://app.cirkitdesigner.com" 
+                class="w-100 h-100 border-0"
+                allow="camera; microphone; clipboard-write">
+            </iframe>
         </div>
     </div>
 </div>
-
-<script>
-function triggerHardwareBreach() {
-    fetch('/api/trigger_alert', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-            transformer_id: 'TG-001',
-            threat_level: 'HIGH',
-            incident_type: 'MAGNETIC_DOOR_OPENED'
-        })
-    })
-    .then(res => res.json())
-    .then(data => {
-        if (data.success) {
-            window.location.href = '/dashboard';
-        }
-    });
-}
-</script>
 {% endblock %}
