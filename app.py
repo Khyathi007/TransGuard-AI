@@ -3,7 +3,6 @@ import datetime
 import base64
 import logging
 from flask import Flask, render_template, request, jsonify, redirect, url_for, session, flash
-from flask_cors import CORS
 from werkzeug.security import generate_password_hash, check_password_hash
 from dotenv import load_dotenv
 
@@ -19,7 +18,6 @@ logging.basicConfig(level=logging.INFO, format='%(asctime)s [%(levelname)s] %(me
 load_dotenv()
 
 app = Flask(__name__)
-CORS(app)
 app.secret_key = os.getenv("SECRET_KEY", "transguard_enterprise_secure_key_2026")
 
 UPLOAD_FOLDER = os.path.join(app.root_path, 'static', 'captured_images')
@@ -551,7 +549,6 @@ def delete_alert():
     if alert:
         incident_id = alert['incident_id']
         
-        # 1. Fetch images associated with this incident to remove physical disk files
         imgs = conn.execute("SELECT file_path FROM captured_images WHERE incident_id = ?", (incident_id,)).fetchall()
         for img in imgs:
             if img['file_path']:
@@ -562,7 +559,6 @@ def delete_alert():
                     except Exception as e:
                         logging.error(f"Error removing image file: {e}")
 
-        # 2. Update status in Database
         conn.execute("UPDATE alerts SET status = 'DELETED' WHERE id = ?", (alert_id,))
         conn.execute("UPDATE incidents SET status = 'DELETED' WHERE id = ?", (incident_id,))
         conn.execute("DELETE FROM captured_images WHERE incident_id = ?", (incident_id,))
@@ -582,7 +578,6 @@ def delete_history_permanent():
 
     conn = get_db()
     
-    # 1. Fetch and remove image files physically from disk
     imgs = conn.execute("SELECT file_path FROM captured_images WHERE incident_id = ?", (incident_id,)).fetchall()
     for img in imgs:
         if img['file_path']:
@@ -593,7 +588,6 @@ def delete_history_permanent():
                 except Exception as e:
                     logging.error(f"Error removing image file: {e}")
 
-    # 2. Fetch and remove video files physically from disk
     videos = conn.execute("SELECT file_path FROM captured_videos WHERE incident_id = ?", (incident_id,)).fetchall()
     for vid in videos:
         if vid['file_path']:
@@ -604,7 +598,6 @@ def delete_history_permanent():
                 except Exception as e:
                     logging.error(f"Error removing video file: {e}")
 
-    # 3. Permanently delete database records
     conn.execute("DELETE FROM incidents WHERE id = ? AND user_id = ?", (incident_id, user['id']))
     conn.execute("DELETE FROM alerts WHERE incident_id = ? AND user_id = ?", (incident_id, user['id']))
     conn.execute("DELETE FROM captured_images WHERE incident_id = ?", (incident_id,))
