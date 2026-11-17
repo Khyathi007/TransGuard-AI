@@ -269,13 +269,48 @@ def simulator_console():
     user = get_current_user()
     if not user:
         return redirect(url_for('login'))
-
-    conn = get_db()
-    alert_count = conn.execute("SELECT COUNT(*) as count FROM alerts WHERE user_id = ? AND status = 'ACTIVE'", (user['id'],)).fetchone()['count']
-    conn.close()
-
-    cirkit_url = os.getenv("CIRKIT_PROJECT_URL", "https://app.cirkitdesigner.com/project/1616a498-2390-439b-80dc-2d29ee05fa4d")
-    return render_template('simulator.html', user=user, alert_count=alert_count, cirkit_url=cirkit_url)
+    
+    # Direct inline HTML fallback so it never throws a 500 template error
+    return """
+    <!DOCTYPE html>
+    <html lang="en">
+    <head>
+        <meta charset="UTF-8">
+        <title>TransGuard AI - Cirkit IoT Simulator</title>
+        <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
+        <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.0/font/bootstrap-icons.css">
+    </head>
+    <body class="bg-light">
+        <nav class="navbar navbar-expand-lg navbar-dark bg-dark px-4 shadow-sm">
+            <a class="navbar-brand fw-bold" href="/dashboard"><i class="bi bi-shield-lock-fill me-2 text-warning"></i>TransGuard AI</a>
+            <div class="ms-auto">
+                <a href="/dashboard" class="btn btn-outline-light btn-sm"><i class="bi bi-speedometer2 me-1"></i> Dashboard</a>
+                <a href="/logout" class="btn btn-danger btn-sm ms-2"><i class="bi bi-box-arrow-right me-1"></i> Logout</a>
+            </div>
+        </nav>
+        <div class="container-fluid py-4">
+            <div class="row mb-4">
+                <div class="col-12 d-flex justify-content-between align-items-center">
+                    <div>
+                        <h2 class="fw-bold mb-1">⚡ Cirkit Designer IoT Hardware Simulator</h2>
+                        <p class="text-muted mb-0">Live interactive preview of your agricultural transformer security circuit.</p>
+                    </div>
+                    <div>
+                        <a href="https://app.cirkitdesigner.com/project/1616a498-2390-439b-80dc-2d29ee05fa4d" target="_blank" class="btn btn-primary shadow-sm">
+                            <i class="bi bi-box-arrow-up-right me-1"></i> Open in Cirkit IDE
+                        </a>
+                    </div>
+                </div>
+            </div>
+            <div class="card shadow-sm border-0 overflow-hidden p-3 bg-white">
+                <div style="position: relative; width: 100%; padding-top: calc(max(56.25%, 550px));">
+                  <iframe src="https://app.cirkitdesigner.com/project/1616a498-2390-439b-80dc-2d29ee05fa4d?view=interactive_preview" style="position: absolute; top: 0; left: 0; width: 100%; height: 100%; border: none;" allowfullscreen></iframe>
+                </div>
+            </div>
+        </div>
+    </body>
+    </html>
+    """
 # --- REAL-TIME CAMERA, POLLING & CONTROL APIS ---
 @app.route('/api/simulate_alert', methods=['POST'])
 def simulate_alert():
