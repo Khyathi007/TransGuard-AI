@@ -368,7 +368,6 @@ function stopAlertManually() {
     stopSirenSound();
     activeAlertTriggered = false;
     
-    // Stop camera and trigger MediaRecorder to finalize and upload the recorded video
     if (mediaRecorder && mediaRecorder.state === 'recording') {
         mediaRecorder.stop();
     } else {
@@ -377,7 +376,6 @@ function stopAlertManually() {
 
     document.body.classList.remove('alert-active');
     
-    // Give 400ms for video upload blob to fire, then call stop_alert API
     setTimeout(() => {
         fetch('/api/stop_alert', {
             method: 'POST',

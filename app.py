@@ -270,7 +270,6 @@ def simulator_console():
     if not user:
         return redirect(url_for('login'))
     
-    # Direct inline HTML fallback so it never throws a 500 template error
     return """
     <!DOCTYPE html>
     <html lang="en">
@@ -311,6 +310,7 @@ def simulator_console():
     </body>
     </html>
     """
+
 # --- REAL-TIME CAMERA, POLLING & CONTROL APIS ---
 @app.route('/api/simulate_alert', methods=['POST'])
 def simulate_alert():
@@ -474,7 +474,6 @@ def stop_alert():
     if incident_id:
         conn.execute("UPDATE incidents SET status = 'COMPLETED' WHERE id = ? AND user_id = ?", (incident_id, user['id']))
 
-        # Always generate H.264 MP4 video with crisp burned-in timestamp on every frame
         imgs = conn.execute("SELECT file_path, captured_at FROM captured_images WHERE incident_id = ? ORDER BY id ASC", (incident_id,)).fetchall()
         valid_imgs = [
             (os.path.join(app.root_path, 'static', img['file_path']), img['captured_at'])
@@ -498,7 +497,6 @@ def stop_alert():
                 for fp, cap_time in valid_imgs:
                     im = Image.open(fp).convert('RGB').resize((640, 480))
                     draw = ImageDraw.Draw(im)
-                    # Large high-contrast top-left timestamp banner burned onto video
                     draw.rectangle([(10, 10), (390, 52)], fill=(15, 23, 42))
                     draw.rectangle([(10, 10), (18, 52)], fill=(34, 197, 94))
                     draw.text((28, 20), f"REC | {cap_time}", fill=(255, 255, 255), font=font)
@@ -598,6 +596,25 @@ def delete_alert():
         conn.execute("DELETE FROM captured_images WHERE incident_id = ?", (incident_id,))
         conn.commit()
 
+    conn.close()
+    return jsonify({"success": True})
+
+@app.route('/api/history/restore', methods=['POST'])
+def restore_history():
+    user = get_current_user()
+    if not user:
+        return jsonify({"success": False}), 401
+
+    data = request.json or {}
+    incident_id = data.get("incident_id")
+
+    conn = get_db()
+    incident = conn.execute("SELECT id FROM incidents WHERE id = ? AND user_id = ?", (incident_id, user['id'])).fetchone()
+    if incident:
+        conn.execute("UPDATE incidents SET status = 'ACTIVE' WHERE id = ?", (incident_id,))
+        conn.execute("UPDATE alerts SET status = 'ACTIVE' WHERE incident_id = ? AND user_id = ?", (incident_id, user['id']))
+        conn.commit()
+    
     conn.close()
     return jsonify({"success": True})
 
