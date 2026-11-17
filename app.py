@@ -274,9 +274,8 @@ def simulator_console():
     alert_count = conn.execute("SELECT COUNT(*) as count FROM alerts WHERE user_id = ? AND status = 'ACTIVE'", (user['id'],)).fetchone()['count']
     conn.close()
 
-    cirkit_url = os.getenv("CIRKIT_PROJECT_URL", "https://app.cirkitdesigner.com")
-    return render_template('simulator.html', user=user, alert_count=alert_count, wokwi_url=cirkit_url)
-
+    cirkit_url = os.getenv("CIRKIT_PROJECT_URL", "https://app.cirkitdesigner.com/project/1616a498-2390-439b-80dc-2d29ee05fa4d")
+    return render_template('simulator.html', user=user, alert_count=alert_count, cirkit_url=cirkit_url)
 # --- REAL-TIME CAMERA, POLLING & CONTROL APIS ---
 @app.route('/api/simulate_alert', methods=['POST'])
 def simulate_alert():

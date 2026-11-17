@@ -4,97 +4,22 @@
     <div class="row mb-4">
         <div class="col-12 d-flex justify-content-between align-items-center">
             <div>
-                <h2 class="fw-bold mb-1">⚡ IoT Hardware & Circuit Simulator</h2>
-                <p class="text-muted mb-0">Manual Node Simulation Console for TransGuard AI ESP32 Hardware.</p>
+                <h2 class="fw-bold mb-1">⚡ Cirkit Designer IoT Simulator</h2>
+                <p class="text-muted mb-0">Live hardware circuit board simulation and breach trigger console.</p>
             </div>
             <div>
-                <button class="btn btn-danger btn-lg shadow-sm" onclick="triggerHardwareBreach()">
-                    <i class="bi bi-shield-exclamation me-2"></i> Simulate Physical Door Breach
-                </button>
+                <a href="{{ cirkit_url }}" target="_blank" class="btn btn-outline-primary">
+                    <i class="bi bi-box-arrow-up-right me-1"></i> Open in Cirkit IDE
+                </a>
             </div>
         </div>
     </div>
 
-    <div class="row">
-        <!-- Hardware Wiring & Schematic Info -->
-        <div class="col-lg-7 mb-4">
-            <div class="card shadow-sm border-0 h-100">
-                <div class="card-header bg-white py-3">
-                    <h5 class="mb-0 fw-bold text-dark"><i class="bi bi-diagram-3 me-2"></i> Circuit Architecture & Wiring Map</h5>
-                </div>
-                <div class="card-body">
-                    <ul class="list-group list-group-flush mb-4">
-                        <li class="list-group-item d-flex justify-content-between px-0">
-                            <span>Microcontroller Node</span>
-                            <span class="badge bg-primary">ESP32-WROOM-32</span>
-                        </li>
-                        <li class="list-group-item d-flex justify-content-between px-0">
-                            <span>Door Sensor</span>
-                            <span>MC-38 Magnetic Reed Switch (GPIO 13)</span>
-                        </li>
-                        <li class="list-group-item d-flex justify-content-between px-0">
-                            <span>Warning Actuators</span>
-                            <span>Active Buzzer (GPIO 12) & Red LED (GPIO 2)</span>
-                        </li>
-                        <li class="list-group-item d-flex justify-content-between px-0">
-                            <span>Cloud Protocol</span>
-                            <span class="text-success fw-bold">POST /api/trigger_alert (Render)</span>
-                        </li>
-                    </ul>
-                    <div class="p-3 bg-light rounded border">
-                        <h6 class="fw-bold text-dark mb-2"><i class="bi bi-file-earmark-binary me-2"></i> Design File Reference</h6>
-                        <p class="text-muted small mb-2">Your hardware workspace file (`transguard_circuit.ckt.ckt`) is securely version-controlled in the repository.</p>
-                        <a href="https://github.com/Khyathi007/TransGuard-AI/blob/main/transguard_circuit.ckt.ckt" target="_blank" class="btn btn-outline-dark btn-sm">
-                            <i class="bi bi-github me-1"></i> View Circuit File on GitHub
-                        </a>
-                    </div>
-                </div>
-            </div>
-        </div>
-
-        <!-- Live Node Serial Console -->
-        <div class="col-lg-5 mb-4">
-            <div class="card shadow-sm border-0 h-100">
-                <div class="card-header bg-white py-3">
-                    <h5 class="mb-0 fw-bold text-dark"><i class="bi bi-terminal me-2"></i> ESP32 Serial Monitor</h5>
-                </div>
-                <div class="card-body bg-dark text-success font-monospace rounded p-3 small" style="height: 280px; overflow-y: auto;">
-                    [0.00] Booting ESP32 Firmware...<br>
-                    [0.15] Initializing GPIO pins (13, 12, 2)...<br>
-                    [0.45] Connecting to SSID: CirkitWifi...<br>
-                    [1.10] WiFi Connected! IP: 192.168.1.104<br>
-                    [1.25] Handshake established with Render backend.<br>
-                    <span class="text-warning">[MONITOR] Door switch CLOSED. Cabinet secure. Click "Simulate Physical Door Breach" to test.</span>
-                </div>
-            </div>
+    <!-- Embedded Cirkit Interactive Workspace -->
+    <div class="card shadow-sm border-0 overflow-hidden p-3 bg-white">
+        <div style="position: relative; width: 100%; padding-top: calc(max(56.25%, 500px));">
+          <iframe src="{{ cirkit_url }}?view=interactive_preview" style="position: absolute; top: 0; left: 0; width: 100%; height: 100%; border: none;" allowfullscreen></iframe>
         </div>
     </div>
 </div>
-
-<script>
-function triggerHardwareBreach() {
-    fetch('/api/trigger_alert', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-            transformer_id: 'TG-001',
-            threat_level: 'HIGH',
-            incident_type: 'MAGNETIC_DOOR_OPENED'
-        })
-    })
-    .then(res => res.json())
-    .then(data => {
-        if (data.success) {
-            window.location.href = '/dashboard';
-        } else {
-            alert('Failed to trigger alert.');
-        }
-    })
-    .catch(err => {
-        console.error("Trigger error:", err);
-        window.location.href = '/dashboard';
-    });
-}
-</script>
-{% endnetlify %}
 {% endblock %}
