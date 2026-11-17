@@ -8,9 +8,9 @@ from dotenv import load_dotenv
 
 from database.database import get_db, init_db
 from services.report_generator import (
-    create_police_complaint_docx,
-    create_electrical_complaint_docx,
-    create_evidence_zip
+create_police_complaint_docx,
+create_electrical_complaint_docx,
+create_evidence_zip
 )
 
 logging.basicConfig(level=logging.INFO, format='%(asctime)s [%(levelname)s] %(message)s')
@@ -31,709 +31,697 @@ os.makedirs(REPORTS_FOLDER, exist_ok=True)
 init_db()
 
 def get_current_user():
-    if 'user_id' not in session:
-        return None
-    conn = get_db()
-    user = conn.execute(
-        "SELECT id, username, email, owner_name, discom_name, phone, location, role FROM users WHERE id = ?",
-        (session['user_id'],)
-    ).fetchone()
-    conn.close()
-    return user
+if 'user_id' not in session:
+return None
+conn = get_db()
+user = conn.execute(
+"SELECT id, username, email, owner_name, discom_name, phone, location, role FROM users WHERE id = ?",
+(session['user_id'],)
+).fetchone()
+conn.close()
+return user
 
 def get_user_incident_seq_map(conn, user_id):
-    rows = conn.execute("SELECT id FROM incidents WHERE user_id = ? ORDER BY id ASC", (user_id,)).fetchall()
-    return {row['id']: idx for idx, row in enumerate(rows, start=1)}
+rows = conn.execute("SELECT id FROM incidents WHERE user_id = ? ORDER BY id ASC", (user_id,)).fetchall()
+return {row['id']: idx for idx, row in enumerate(rows, start=1)}
 
 # --- AUTHENTICATION & CORE ROUTES ---
 @app.route('/')
 def index():
-    if 'user_id' in session:
-        return redirect(url_for('dashboard'))
-    return redirect(url_for('login'))
+if 'user_id' in session:
+return redirect(url_for('dashboard'))
+return redirect(url_for('login'))
 
 @app.route('/login', methods=['GET', 'POST'])
 def login():
-    error = None
-    if request.method == 'POST':
-        username = request.form.get('username', '').strip()
-        password = request.form.get('password', '')
-        conn = get_db()
-        user = conn.execute("SELECT * FROM users WHERE username = ?", (username,)).fetchone()
-        conn.close()
-        if user and check_password_hash(user['password'], password):
-            session.clear()
-            session['user_id'] = user['id']
-            session['username'] = user['username']
-            return redirect(url_for('dashboard'))
-        error = "Invalid credentials."
-        flash(error, "danger")
-    return render_template('login.html', error=error)
+error = None
+if request.method == 'POST':
+username = request.form.get('username', '').strip()
+password = request.form.get('password', '')
+conn = get_db()
+user = conn.execute("SELECT * FROM users WHERE username = ?", (username,)).fetchone()
+conn.close()
+if user and check_password_hash(user['password'], password):
+session.clear()
+session['user_id'] = user['id']
+session['username'] = user['username']
+return redirect(url_for('dashboard'))
+error = "Invalid credentials."
+flash(error, "danger")
+return render_template('login.html', error=error)
 
 @app.route('/signup', methods=['POST'])
 @app.route('/register', methods=['GET', 'POST'])
 def register():
-    error = None
-    if request.method == 'POST':
-        username = request.form.get('username', '').strip()
-        password = request.form.get('password', '')
-        email = request.form.get('email', '').strip()
-        owner_name = request.form.get('owner_name', '').strip() or username
-        discom_name = request.form.get('discom_name', 'APSPDCL').strip() or 'APSPDCL'
-        phone = request.form.get('phone', '').strip()
-        location = request.form.get('location', '').strip()
-        transformer_id = request.form.get('transformer_id', '').strip().upper()
+error = None
+if request.method == 'POST':
+username = request.form.get('username', '').strip()
+password = request.form.get('password', '')
+email = request.form.get('email', '').strip()
+owner_name = request.form.get('owner_name', '').strip() or username
+discom_name = request.form.get('discom_name', 'APSPDCL').strip() or 'APSPDCL'
+phone = request.form.get('phone', '').strip()
+location = request.form.get('location', '').strip()
+transformer_id = request.form.get('transformer_id', '').strip().upper()
 
-        if not all([username, password, email, phone, location, transformer_id]):
-            error = "All fields are required."
-            flash(error, "danger")
-            return redirect(url_for('login'))
-        else:
-            hashed_pw = generate_password_hash(password, method='pbkdf2:sha256')
-            conn = get_db()
-            cursor = conn.cursor()
-            try:
-                cursor.execute(
-                    "INSERT INTO users (username, password, email, owner_name, discom_name, phone, location) VALUES (?, ?, ?, ?, ?, ?, ?)",
-                    (username, hashed_pw, email, owner_name, discom_name, phone, location)
-                )
-                user_id = cursor.lastrowid
-                cursor.execute(
-                    "INSERT INTO transformers (user_id, transformer_id, location) VALUES (?, ?, ?)",
-                    (user_id, transformer_id, location)
-                )
-                conn.commit()
-                conn.close()
+if not all([username, password, email, phone, location, transformer_id]):
+error = "All fields are required."
+flash(error, "danger")
+return redirect(url_for('login'))
+else:
+hashed_pw = generate_password_hash(password, method='pbkdf2:sha256')
+conn = get_db()
+cursor = conn.cursor()
+try:
+cursor.execute(
+"INSERT INTO users (username, password, email, owner_name, discom_name, phone, location) VALUES (?, ?, ?, ?, ?, ?, ?)",
+(username, hashed_pw, email, owner_name, discom_name, phone, location)
+)
+user_id = cursor.lastrowid
+cursor.execute(
+"INSERT INTO transformers (user_id, transformer_id, location) VALUES (?, ?, ?)",
+(user_id, transformer_id, location)
+)
+conn.commit()
+conn.close()
 
-                session.clear()
-                session['user_id'] = user_id
-                session['username'] = username
-                return redirect(url_for('dashboard'))
-            except Exception as e:
-                conn.rollback()
-                conn.close()
-                error = "Registration failed. Username or Transformer ID may already exist."
-                flash(error, "danger")
-                return redirect(url_for('login'))
+session.clear()
+session['user_id'] = user_id
+session['username'] = username
+return redirect(url_for('dashboard'))
+except Exception as e:
+conn.rollback()
+conn.close()
+error = "Registration failed. Username or Transformer ID may already exist."
+flash(error, "danger")
+return redirect(url_for('login'))
 
-    return render_template('login.html', error=error)
+return render_template('login.html', error=error)
 
 @app.route('/logout')
 def logout():
-    session.clear()
-    return redirect(url_for('login'))
+session.clear()
+return redirect(url_for('login'))
 
 @app.route('/dashboard')
 def dashboard():
-    user = get_current_user()
-    if not user:
-        return redirect(url_for('login'))
+user = get_current_user()
+if not user:
+return redirect(url_for('login'))
 
-    conn = get_db()
-    transformer = conn.execute("SELECT * FROM transformers WHERE user_id = ?", (user['id'],)).fetchone()
-    
-    active_incident = conn.execute(
-        "SELECT * FROM incidents WHERE user_id = ? AND status = 'ACTIVE' ORDER BY id DESC LIMIT 1",
-        (user['id'],)
-    ).fetchone()
+conn = get_db()
+transformer = conn.execute("SELECT * FROM transformers WHERE user_id = ?", (user['id'],)).fetchone()
+active_incident = conn.execute(
+"SELECT * FROM incidents WHERE user_id = ? AND status = 'ACTIVE' ORDER BY id DESC LIMIT 1",
+(user['id'],)
+).fetchone()
 
-    recent_images = []
-    captured_count = 0
-    if active_incident:
-        recent_images = conn.execute(
-            "SELECT * FROM captured_images WHERE incident_id = ? ORDER BY id DESC LIMIT 8",
-            (active_incident['id'],)
-        ).fetchall()
-        captured_count = conn.execute(
-            "SELECT COUNT(*) as count FROM captured_images WHERE incident_id = ?",
-            (active_incident['id'],)
-        ).fetchone()['count']
-    else:
-        last_inc = conn.execute(
-            "SELECT id FROM incidents WHERE user_id = ? AND status != 'DELETED' ORDER BY id DESC LIMIT 1",
-            (user['id'],)
-        ).fetchone()
-        if last_inc:
-            recent_images = conn.execute(
-                "SELECT * FROM captured_images WHERE incident_id = ? ORDER BY id DESC LIMIT 8",
-                (last_inc['id'],)
-            ).fetchall()
-            captured_count = len(recent_images)
+recent_images = []
+captured_count = 0
+if active_incident:
+recent_images = conn.execute(
+"SELECT * FROM captured_images WHERE incident_id = ? ORDER BY id DESC LIMIT 8",
+(active_incident['id'],)
+).fetchall()
+captured_count = conn.execute(
+"SELECT COUNT(*) as count FROM captured_images WHERE incident_id = ?",
+(active_incident['id'],)
+).fetchone()['count']
+else:
+last_inc = conn.execute(
+"SELECT id FROM incidents WHERE user_id = ? AND status != 'DELETED' ORDER BY id DESC LIMIT 1",
+(user['id'],)
+).fetchone()
+if last_inc:
+recent_images = conn.execute(
+"SELECT * FROM captured_images WHERE incident_id = ? ORDER BY id DESC LIMIT 8",
+(last_inc['id'],)
+).fetchall()
+captured_count = len(recent_images)
 
-    alert_count = conn.execute(
-        "SELECT COUNT(*) as count FROM alerts WHERE user_id = ? AND status = 'ACTIVE'",
-        (user['id'],)
-    ).fetchone()['count']
+alert_count = conn.execute(
+"SELECT COUNT(*) as count FROM alerts WHERE user_id = ? AND status = 'ACTIVE'",
+(user['id'],)
+).fetchone()['count']
 
-    conn.close()
-    wokwi_url = os.getenv("WOKWI_PROJECT_URL", "https://wokwi.com")
+conn.close()
+wokwi_url = os.getenv("WOKWI_PROJECT_URL", "https://wokwi.com")
 
-    return render_template(
-        'dashboard.html',
-        user=user,
-        transformer=transformer,
-        active_incident=active_incident,
-        recent_images=recent_images,
-        captured_count=captured_count,
-        alert_count=alert_count,
-        wokwi_url=wokwi_url
-    )
+return render_template(
+'dashboard.html',
+user=user,
+transformer=transformer,
+active_incident=active_incident,
+recent_images=recent_images,
+captured_count=captured_count,
+alert_count=alert_count,
+wokwi_url=wokwi_url
+)
 
 @app.route('/alerts')
 def alerts():
-    user = get_current_user()
-    if not user:
-        return redirect(url_for('login'))
+user = get_current_user()
+if not user:
+return redirect(url_for('login'))
 
-    conn = get_db()
-    seq_map = get_user_incident_seq_map(conn, user['id'])
-    alerts_list = conn.execute('''
-        SELECT a.id as alert_id, a.status as alert_status, i.* 
-        FROM alerts a
-        JOIN incidents i ON a.incident_id = i.id
-        WHERE a.user_id = ? AND a.status = 'ACTIVE'
-        ORDER BY a.id DESC
-    ''', (user['id'],)).fetchall()
-    
-    alert_details = []
-    for alt in alerts_list:
-        incident_id = alt['id']
-        imgs = conn.execute("SELECT * FROM captured_images WHERE incident_id = ? ORDER BY id ASC", (incident_id,)).fetchall()
-        video_row = conn.execute("SELECT file_path FROM captured_videos WHERE incident_id = ? ORDER BY id DESC LIMIT 1", (incident_id,)).fetchone()
-        video_path = video_row['file_path'] if video_row else None
-        alert_details.append({"alert": alt, "user_seq": seq_map.get(incident_id, incident_id), "images": imgs, "video_path": video_path})
+conn = get_db()
+seq_map = get_user_incident_seq_map(conn, user['id'])
+alerts_list = conn.execute('''
+SELECT a.id as alert_id, a.status as alert_status, i.*
+FROM alerts a
+JOIN incidents i ON a.incident_id = i.id
+WHERE a.user_id = ? AND a.status = 'ACTIVE'
+ORDER BY a.id DESC
+''', (user['id'],)).fetchall()
+alert_details = []
+for alt in alerts_list:
+incident_id = alt['id']
+imgs = conn.execute("SELECT * FROM captured_images WHERE incident_id = ? ORDER BY id ASC", (incident_id,)).fetchall()
+video_row = conn.execute("SELECT file_path FROM captured_videos WHERE incident_id = ? ORDER BY id DESC LIMIT 1", (incident_id,)).fetchone()
+video_path = video_row['file_path'] if video_row else None
+alert_details.append({"alert": alt, "user_seq": seq_map.get(incident_id, incident_id), "images": imgs, "video_path": video_path})
 
-    alert_count = len(alerts_list)
-    conn.close()
-    wokwi_url = os.getenv("WOKWI_PROJECT_URL", "https://wokwi.com")
-    return render_template('alerts.html', user=user, alert_details=alert_details, alert_count=alert_count, wokwi_url=wokwi_url)
+alert_count = len(alerts_list)
+conn.close()
+wokwi_url = os.getenv("WOKWI_PROJECT_URL", "https://wokwi.com")
+return render_template('alerts.html', user=user, alert_details=alert_details, alert_count=alert_count, wokwi_url=wokwi_url)
 
 @app.route('/history')
 def history():
-    user = get_current_user()
-    if not user:
-        return redirect(url_for('login'))
+user = get_current_user()
+if not user:
+return redirect(url_for('login'))
 
-    conn = get_db()
-    seq_map = get_user_incident_seq_map(conn, user['id'])
-    incidents = conn.execute("SELECT * FROM incidents WHERE user_id = ? ORDER BY id DESC", (user['id'],)).fetchall()
-    history_details = []
-    for inc in incidents:
-        imgs = conn.execute("SELECT * FROM captured_images WHERE incident_id = ? ORDER BY id ASC", (inc['id'],)).fetchall()
-        video_row = conn.execute("SELECT file_path FROM captured_videos WHERE incident_id = ? ORDER BY id DESC LIMIT 1", (inc['id'],)).fetchone()
-        video_path = video_row['file_path'] if video_row else None
-        history_details.append({"incident": inc, "user_seq": seq_map.get(inc['id'], inc['id']), "images": imgs, "video_path": video_path})
+conn = get_db()
+seq_map = get_user_incident_seq_map(conn, user['id'])
+incidents = conn.execute("SELECT * FROM incidents WHERE user_id = ? ORDER BY id DESC", (user['id'],)).fetchall()
+history_details = []
+for inc in incidents:
+imgs = conn.execute("SELECT * FROM captured_images WHERE incident_id = ? ORDER BY id ASC", (inc['id'],)).fetchall()
+video_row = conn.execute("SELECT file_path FROM captured_videos WHERE incident_id = ? ORDER BY id DESC LIMIT 1", (inc['id'],)).fetchone()
+video_path = video_row['file_path'] if video_row else None
+history_details.append({"incident": inc, "user_seq": seq_map.get(inc['id'], inc['id']), "images": imgs, "video_path": video_path})
 
-    alert_count = conn.execute("SELECT COUNT(*) as count FROM alerts WHERE user_id = ? AND status = 'ACTIVE'", (user['id'],)).fetchone()['count']
-    conn.close()
-    wokwi_url = os.getenv("WOKWI_PROJECT_URL", "https://wokwi.com")
-    return render_template('history.html', user=user, history_details=history_details, alert_count=alert_count, wokwi_url=wokwi_url)
+alert_count = conn.execute("SELECT COUNT(*) as count FROM alerts WHERE user_id = ? AND status = 'ACTIVE'", (user['id'],)).fetchone()['count']
+conn.close()
+wokwi_url = os.getenv("WOKWI_PROJECT_URL", "https://wokwi.com")
+return render_template('history.html', user=user, history_details=history_details, alert_count=alert_count, wokwi_url=wokwi_url)
 
 @app.route('/report', methods=['GET', 'POST'])
 def report_page():
-    user = get_current_user()
-    if not user:
-        return redirect(url_for('login'))
+user = get_current_user()
+if not user:
+return redirect(url_for('login'))
 
-    conn = get_db()
-    seq_map = get_user_incident_seq_map(conn, user['id'])
-    raw_incidents = conn.execute("SELECT * FROM incidents WHERE user_id = ? ORDER BY id DESC", (user['id'],)).fetchall()
-    incidents = []
-    for inc in raw_incidents:
-        inc_dict = dict(inc)
-        inc_dict['user_seq'] = seq_map.get(inc['id'], inc['id'])
-        incidents.append(inc_dict)
+conn = get_db()
+seq_map = get_user_incident_seq_map(conn, user['id'])
+raw_incidents = conn.execute("SELECT * FROM incidents WHERE user_id = ? ORDER BY id DESC", (user['id'],)).fetchall()
+incidents = []
+for inc in raw_incidents:
+inc_dict = dict(inc)
+inc_dict['user_seq'] = seq_map.get(inc['id'], inc['id'])
+incidents.append(inc_dict)
 
-    alert_count = conn.execute("SELECT COUNT(*) as count FROM alerts WHERE user_id = ? AND status = 'ACTIVE'", (user['id'],)).fetchone()['count']
+alert_count = conn.execute("SELECT COUNT(*) as count FROM alerts WHERE user_id = ? AND status = 'ACTIVE'", (user['id'],)).fetchone()['count']
 
-    selected_incident = None
-    captured_images = []
-    video_path = None
+selected_incident = None
+captured_images = []
+video_path = None
 
-    incident_id = request.args.get('incident_id')
-    if incident_id:
-        row = conn.execute("SELECT * FROM incidents WHERE id = ? AND user_id = ?", (incident_id, user['id'])).fetchone()
-        if row:
-            selected_incident = dict(row)
-            selected_incident['user_seq'] = seq_map.get(row['id'], row['id'])
-            captured_images = conn.execute("SELECT * FROM captured_images WHERE incident_id = ? ORDER BY id ASC", (selected_incident['id'],)).fetchall()
-            v_row = conn.execute("SELECT file_path FROM captured_videos WHERE incident_id = ? ORDER BY id DESC LIMIT 1", (selected_incident['id'],)).fetchone()
-            video_path = v_row['file_path'] if v_row else None
+incident_id = request.args.get('incident_id')
+if incident_id:
+row = conn.execute("SELECT * FROM incidents WHERE id = ? AND user_id = ?", (incident_id, user['id'])).fetchone()
+if row:
+selected_incident = dict(row)
+selected_incident['user_seq'] = seq_map.get(row['id'], row['id'])
+captured_images = conn.execute("SELECT * FROM captured_images WHERE incident_id = ? ORDER BY id ASC", (selected_incident['id'],)).fetchall()
+v_row = conn.execute("SELECT file_path FROM captured_videos WHERE incident_id = ? ORDER BY id DESC LIMIT 1", (selected_incident['id'],)).fetchone()
+video_path = v_row['file_path'] if v_row else None
 
-    conn.close()
-    wokwi_url = os.getenv("WOKWI_PROJECT_URL", "https://wokwi.com")
-    return render_template('report.html', user=user, incidents=incidents, selected=selected_incident, images=captured_images, video_path=video_path, alert_count=alert_count, wokwi_url=wokwi_url)
+conn.close()
+wokwi_url = os.getenv("WOKWI_PROJECT_URL", "https://wokwi.com")
+return render_template('report.html', user=user, incidents=incidents, selected=selected_incident, images=captured_images, video_path=video_path, alert_count=alert_count, wokwi_url=wokwi_url)
 
 @app.route('/simulator')
 def simulator_console():
-    user = get_current_user()
-    if not user:
-        return redirect(url_for('login'))
-    
-    return """
-    <!DOCTYPE html>
-    <html lang="en">
-    <head>
-        <meta charset="UTF-8">
-        <title>TransGuard AI - Cirkit IoT Simulator</title>
-        <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
-        <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.0/font/bootstrap-icons.css">
-    </head>
-    <body class="bg-light">
-        <nav class="navbar navbar-expand-lg navbar-dark bg-dark px-4 shadow-sm">
-            <a class="navbar-brand fw-bold" href="/dashboard"><i class="bi bi-shield-lock-fill me-2 text-warning"></i>TransGuard AI</a>
-            <div class="ms-auto">
-                <a href="/dashboard" class="btn btn-outline-light btn-sm"><i class="bi bi-speedometer2 me-1"></i> Dashboard</a>
-                <a href="/logout" class="btn btn-danger btn-sm ms-2"><i class="bi bi-box-arrow-right me-1"></i> Logout</a>
-            </div>
-        </nav>
-        <div class="container-fluid py-4">
-            <div class="row mb-4">
-                <div class="col-12 d-flex justify-content-between align-items-center">
-                    <div>
-                        <h2 class="fw-bold mb-1">⚡ Cirkit Designer IoT Hardware Simulator</h2>
-                        <p class="text-muted mb-0">Live interactive preview of your agricultural transformer security circuit.</p>
-                    </div>
-                    <div>
-                        <a href="https://app.cirkitdesigner.com/project/1616a498-2390-439b-80dc-2d29ee05fa4d" target="_blank" class="btn btn-primary shadow-sm">
-                            <i class="bi bi-box-arrow-up-right me-1"></i> Open in Cirkit IDE
-                        </a>
-                    </div>
-                </div>
-            </div>
-            <div class="card shadow-sm border-0 overflow-hidden p-3 bg-white">
-                <div style="position: relative; width: 100%; padding-top: calc(max(56.25%, 550px));">
-                  <iframe src="https://app.cirkitdesigner.com/project/1616a498-2390-439b-80dc-2d29ee05fa4d?view=interactive_preview" style="position: absolute; top: 0; left: 0; width: 100%; height: 100%; border: none;" allowfullscreen></iframe>
-                </div>
-            </div>
-        </div>
-    </body>
-    </html>
-    """
+user = get_current_user()
+if not user:
+return redirect(url_for('login'))
+return """
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<title>TransGuard AI - Cirkit IoT Simulator</title>
+<link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
+<link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.0/font/bootstrap-icons.css">
+</head>
+<body class="bg-light">
+<nav class="navbar navbar-expand-lg navbar-dark bg-dark px-4 shadow-sm">
+<a class="navbar-brand fw-bold" href="/dashboard"><i class="bi bi-shield-lock-fill me-2 text-warning"></i>TransGuard AI</a>
+<div class="ms-auto">
+<a href="/dashboard" class="btn btn-outline-light btn-sm"><i class="bi bi-speedometer2 me-1"></i> Dashboard</a>
+<a href="/logout" class="btn btn-danger btn-sm ms-2"><i class="bi bi-box-arrow-right me-1"></i> Logout</a>
+</div>
+</nav>
+<div class="container-fluid py-4">
+<div class="row mb-4">
+<div class="col-12 d-flex justify-content-between align-items-center">
+<div>
+<h2 class="fw-bold mb-1">⚡ Cirkit Designer IoT Hardware Simulator</h2>
+<p class="text-muted mb-0">Live interactive preview of your agricultural transformer security circuit.</p>
+</div>
+<div>
+<a href="https://app.cirkitdesigner.com/project/1616a498-2390-439b-80dc-2d29ee05fa4d" target="_blank" class="btn btn-primary shadow-sm">
+<i class="bi bi-box-arrow-up-right me-1"></i> Open in Cirkit IDE
+</a>
+</div>
+</div>
+</div>
+<div class="card shadow-sm border-0 overflow-hidden p-3 bg-white">
+<div style="position: relative; width: 100%; padding-top: calc(max(56.25%, 550px));">
+<iframe src="https://app.cirkitdesigner.com/project/1616a498-2390-439b-80dc-2d29ee05fa4d?view=interactive_preview" style="position: absolute; top: 0; left: 0; width: 100%; height: 100%; border: none;" allowfullscreen></iframe>
+</div>
+</div>
+</div>
+</body>
+</html>
+"""
 
 # --- REAL-TIME CAMERA, POLLING & CONTROL APIS ---
 @app.route('/api/simulate_alert', methods=['POST'])
 def simulate_alert():
-    user = get_current_user()
-    if not user:
-        return jsonify({"success": False, "message": "Unauthorized"}), 401
+user = get_current_user()
+if not user:
+return jsonify({"success": False, "message": "Unauthorized"}), 401
 
-    data = request.json or {}
-    chosen_response = data.get("response", "PENDING")
-    threat_level = "HIGH" if chosen_response == "YES" else ("LOW" if chosen_response == "NO" else "PENDING")
-    timestamp = datetime.datetime.now().strftime("%d %b %Y %H:%M:%S")
+data = request.json or {}
+chosen_response = data.get("response", "PENDING")
+threat_level = "HIGH" if chosen_response == "YES" else ("LOW" if chosen_response == "NO" else "PENDING")
+timestamp = datetime.datetime.now().strftime("%d %b %Y %H:%M:%S")
 
-    conn = get_db()
-    transformer = conn.execute("SELECT * FROM transformers WHERE user_id = ?", (user['id'],)).fetchone()
-    if not transformer:
-        conn.close()
-        return jsonify({"success": False, "message": "No transformer linked to user"}), 400
+conn = get_db()
+transformer = conn.execute("SELECT * FROM transformers WHERE user_id = ?", (user['id'],)).fetchone()
+if not transformer:
+conn.close()
+return jsonify({"success": False, "message": "No transformer linked to user"}), 400
 
-    cursor = conn.cursor()
-    cursor.execute('''
-        INSERT INTO incidents (user_id, transformer_id, incident_type, detected_time, threat_level, owner_response, status, live_feed_status, evidence_status)
-        VALUES (?, ?, 'Door Opened', ?, ?, ?, 'ACTIVE', 'ACTIVE', 'IN_PROGRESS')
-    ''', (user['id'], transformer['transformer_id'], timestamp, threat_level, chosen_response))
-    
-    incident_id = cursor.lastrowid
+cursor = conn.cursor()
+cursor.execute('''
+INSERT INTO incidents (user_id, transformer_id, incident_type, detected_time, threat_level, owner_response, status, live_feed_status, evidence_status)
+VALUES (?, ?, 'Door Opened', ?, ?, ?, 'ACTIVE', 'ACTIVE', 'IN_PROGRESS')
+''', (user['id'], transformer['transformer_id'], timestamp, threat_level, chosen_response))
+incident_id = cursor.lastrowid
 
-    cursor.execute('''
-        INSERT INTO alerts (user_id, incident_id, alert_type, status)
-        VALUES (?, ?, 'UNAUTHORIZED DOOR OPEN', 'ACTIVE')
-    ''', (user['id'], incident_id))
+cursor.execute('''
+INSERT INTO alerts (user_id, incident_id, alert_type, status)
+VALUES (?, ?, 'UNAUTHORIZED DOOR OPEN', 'ACTIVE')
+''', (user['id'], incident_id))
 
-    cursor.execute("UPDATE transformers SET status = 'ALERT' WHERE id = ?", (transformer['id'],))
-    conn.commit()
-    conn.close()
+cursor.execute("UPDATE transformers SET status = 'ALERT' WHERE id = ?", (transformer['id'],))
+conn.commit()
+conn.close()
 
-    return jsonify({"success": True, "incident_id": incident_id, "threat_level": threat_level, "detected_time": timestamp})
+return jsonify({"success": True, "incident_id": incident_id, "threat_level": threat_level, "detected_time": timestamp})
 
 # --- HARDWARE & CIRKIT DESIGNER INTEGRATION API ---
 @app.route('/api/trigger_alert', methods=['POST'])
 def trigger_alert():
-    data = request.json or {}
-    transformer_id = data.get('transformer_id', 'TG-001')
-    threat_level = data.get('threat_level', 'HIGH')
-    incident_type = data.get('incident_type', 'MAGNETIC_DOOR_OPENED')
-    timestamp = datetime.datetime.now().strftime("%d %b %Y %H:%M:%S")
+data = request.json or {}
+transformer_id = data.get('transformer_id', 'TG-001')
+threat_level = data.get('threat_level', 'HIGH')
+incident_type = data.get('incident_type', 'MAGNETIC_DOOR_OPENED')
+timestamp = datetime.datetime.now().strftime("%d %b %Y %H:%M:%S")
 
-    conn = get_db()
-    transformer = conn.execute("SELECT * FROM transformers WHERE transformer_id = ?", (transformer_id,)).fetchone()
-    
-    if transformer:
-        user_id = transformer['user_id']
-    else:
-        first_user = conn.execute("SELECT id FROM users ORDER BY id ASC LIMIT 1").fetchone()
-        user_id = first_user['id'] if first_user else 1
+conn = get_db()
+transformer = conn.execute("SELECT * FROM transformers WHERE transformer_id = ?", (transformer_id,)).fetchone()
+if transformer:
+user_id = transformer['user_id']
+else:
+first_user = conn.execute("SELECT id FROM users ORDER BY id ASC LIMIT 1").fetchone()
+user_id = first_user['id'] if first_user else 1
 
-    cursor = conn.cursor()
-    cursor.execute('''
-        INSERT INTO incidents (user_id, transformer_id, incident_type, detected_time, threat_level, owner_response, status, live_feed_status, evidence_status)
-        VALUES (?, ?, ?, ?, ?, 'PENDING', 'ACTIVE', 'ACTIVE', 'IN_PROGRESS')
-    ''', (user_id, transformer_id, incident_type, timestamp, threat_level))
-    
-    incident_id = cursor.lastrowid
+cursor = conn.cursor()
+cursor.execute('''
+INSERT INTO incidents (user_id, transformer_id, incident_type, detected_time, threat_level, owner_response, status, live_feed_status, evidence_status)
+VALUES (?, ?, ?, ?, ?, 'PENDING', 'ACTIVE', 'ACTIVE', 'IN_PROGRESS')
+''', (user_id, transformer_id, incident_type, timestamp, threat_level))
+incident_id = cursor.lastrowid
 
-    cursor.execute('''
-        INSERT INTO alerts (user_id, incident_id, alert_type, status)
-        VALUES (?, ?, ?, 'ACTIVE')
-    ''', (user_id, incident_id, incident_type))
+cursor.execute('''
+INSERT INTO alerts (user_id, incident_id, alert_type, status)
+VALUES (?, ?, ?, 'ACTIVE')
+''', (user_id, incident_id, incident_type))
 
-    cursor.execute("UPDATE transformers SET status = 'ALERT' WHERE transformer_id = ?", (transformer_id,))
-    conn.commit()
-    conn.close()
+cursor.execute("UPDATE transformers SET status = 'ALERT' WHERE transformer_id = ?", (transformer_id,))
+conn.commit()
+conn.close()
 
-    logging.info(f"[HARDWARE/CIRKIT ALERT] Incident created! ID: {incident_id}")
-    return jsonify({"success": True, "incident_id": incident_id}), 200
+logging.info(f"[HARDWARE/CIRKIT ALERT] Incident created! ID: {incident_id}")
+return jsonify({"success": True, "incident_id": incident_id}), 200
 
 @app.route('/api/update_threat_level', methods=['POST'])
 def update_threat_level():
-    user = get_current_user()
-    if not user:
-        return jsonify({"success": False}), 401
+user = get_current_user()
+if not user:
+return jsonify({"success": False}), 401
 
-    data = request.json or {}
-    incident_id = data.get("incident_id")
-    chosen_response = data.get("response", "YES")
-    threat_level = "HIGH" if chosen_response == "YES" else "LOW"
+data = request.json or {}
+incident_id = data.get("incident_id")
+chosen_response = data.get("response", "YES")
+threat_level = "HIGH" if chosen_response == "YES" else "LOW"
 
-    conn = get_db()
-    conn.execute(
-        "UPDATE incidents SET owner_response = ?, threat_level = ? WHERE id = ? AND user_id = ?",
-        (chosen_response, threat_level, incident_id, user['id'])
-    )
-    conn.commit()
-    conn.close()
+conn = get_db()
+conn.execute(
+"UPDATE incidents SET owner_response = ?, threat_level = ? WHERE id = ? AND user_id = ?",
+(chosen_response, threat_level, incident_id, user['id'])
+)
+conn.commit()
+conn.close()
 
-    return jsonify({"success": True})
+return jsonify({"success": True})
 
 @app.route('/api/poll')
 def poll_dashboard():
-    user = get_current_user()
-    if not user:
-        return jsonify({"authenticated": False}), 401
+user = get_current_user()
+if not user:
+return jsonify({"authenticated": False}), 401
 
-    conn = get_db()
-    active_incident = conn.execute('''
-        SELECT * FROM incidents 
-        WHERE user_id = ? AND status = 'ACTIVE' 
-        ORDER BY id DESC LIMIT 1
-    ''', (user['id'],)).fetchone()
+conn = get_db()
+active_incident = conn.execute('''
+SELECT * FROM incidents
+WHERE user_id = ? AND status = 'ACTIVE'
+ORDER BY id DESC LIMIT 1
+''', (user['id'],)).fetchone()
 
-    alert_count = conn.execute(
-        "SELECT COUNT(*) as count FROM alerts WHERE user_id = ? AND status = 'ACTIVE'",
-        (user['id'],)
-    ).fetchone()['count']
+alert_count = conn.execute(
+"SELECT COUNT(*) as count FROM alerts WHERE user_id = ? AND status = 'ACTIVE'",
+(user['id'],)
+).fetchone()['count']
 
-    if active_incident:
-        imgs = conn.execute(
-            "SELECT * FROM captured_images WHERE incident_id = ? ORDER BY id DESC LIMIT 8",
-            (active_incident['id'],)
-        ).fetchall()
-        
-        captured_total = conn.execute(
-            "SELECT COUNT(*) as count FROM captured_images WHERE incident_id = ?",
-            (active_incident['id'],)
-        ).fetchone()['count']
+if active_incident:
+imgs = conn.execute(
+"SELECT * FROM captured_images WHERE incident_id = ? ORDER BY id DESC LIMIT 8",
+(active_incident['id'],)
+).fetchall()
+captured_total = conn.execute(
+"SELECT COUNT(*) as count FROM captured_images WHERE incident_id = ?",
+(active_incident['id'],)
+).fetchone()['count']
 
-        img_list = [{"path": img['file_path'], "captured_at": img['captured_at']} for img in imgs]
+img_list = [{"path": img['file_path'], "captured_at": img['captured_at']} for img in imgs]
 
-        conn.close()
-        return jsonify({
-            "authenticated": True,
-            "has_active": True,
-            "alert_count": alert_count,
-            "incident": {
-                "id": active_incident['id'],
-                "transformer_id": active_incident['transformer_id'],
-                "detected_time": active_incident['detected_time'],
-                "threat_level": active_incident['threat_level'],
-                "owner_response": active_incident['owner_response']
-            },
-            "images": img_list,
-            "captured_count": captured_total
-        })
+conn.close()
+return jsonify({
+"authenticated": True,
+"has_active": True,
+"alert_count": alert_count,
+"incident": {
+"id": active_incident['id'],
+"transformer_id": active_incident['transformer_id'],
+"detected_time": active_incident['detected_time'],
+"threat_level": active_incident['threat_level'],
+"owner_response": active_incident['owner_response']
+},
+"images": img_list,
+"captured_count": captured_total
+})
 
-    conn.close()
-    return jsonify({"authenticated": True, "has_active": False, "alert_count": alert_count, "captured_count": 0})
+conn.close()
+return jsonify({"authenticated": True, "has_active": False, "alert_count": alert_count, "captured_count": 0})
 
 @app.route('/api/stop_alert', methods=['POST'])
 def stop_alert():
-    user = get_current_user()
-    if not user:
-        return jsonify({"success": False}), 401
+user = get_current_user()
+if not user:
+return jsonify({"success": False}), 401
 
-    data = request.json or {}
-    incident_id = data.get("incident_id")
+data = request.json or {}
+incident_id = data.get("incident_id")
 
-    conn = get_db()
-    if not incident_id:
-        row = conn.execute("SELECT id FROM incidents WHERE user_id = ? AND status = 'ACTIVE' ORDER BY id DESC LIMIT 1", (user['id'],)).fetchone()
-        incident_id = row['id'] if row else None
+conn = get_db()
+if not incident_id:
+row = conn.execute("SELECT id FROM incidents WHERE user_id = ? AND status = 'ACTIVE' ORDER BY id DESC LIMIT 1", (user['id'],)).fetchone()
+incident_id = row['id'] if row else None
 
-    if incident_id:
-        conn.execute("UPDATE incidents SET status = 'COMPLETED' WHERE id = ? AND user_id = ?", (incident_id, user['id']))
+if incident_id:
+conn.execute("UPDATE incidents SET status = 'COMPLETED' WHERE id = ? AND user_id = ?", (incident_id, user['id']))
 
-        imgs = conn.execute("SELECT file_path, captured_at FROM captured_images WHERE incident_id = ? ORDER BY id ASC", (incident_id,)).fetchall()
-        valid_imgs = [
-            (os.path.join(app.root_path, 'static', img['file_path']), img['captured_at'])
-            for img in imgs
-            if os.path.exists(os.path.join(app.root_path, 'static', img['file_path']))
-        ]
-        if valid_imgs:
-            try:
-                import imageio.v2 as imageio
-                import numpy as np
-                from PIL import Image, ImageDraw, ImageFont
+imgs = conn.execute("SELECT file_path, captured_at FROM captured_images WHERE incident_id = ? ORDER BY id ASC", (incident_id,)).fetchall()
+valid_imgs = [
+(os.path.join(app.root_path, 'static', img['file_path']), img['captured_at'])
+for img in imgs
+if os.path.exists(os.path.join(app.root_path, 'static', img['file_path']))
+]
+if valid_imgs:
+try:
+import imageio.v2 as imageio
+import numpy as np
+from PIL import Image, ImageDraw, ImageFont
 
-                filename = f"TG-{incident_id}_recording.mp4"
-                filepath = os.path.join(VIDEO_FOLDER, filename)
-                writer = imageio.get_writer(filepath, fps=2, codec='libx264', pixelformat='yuv420p')
-                try:
-                    font = ImageFont.load_default(size=22)
-                except TypeError:
-                    font = ImageFont.load_default()
+filename = f"TG-{incident_id}_recording.mp4"
+filepath = os.path.join(VIDEO_FOLDER, filename)
+writer = imageio.get_writer(filepath, fps=2, codec='libx264', pixelformat='yuv420p')
+try:
+font = ImageFont.load_default(size=22)
+except TypeError:
+font = ImageFont.load_default()
 
-                for fp, cap_time in valid_imgs:
-                    im = Image.open(fp).convert('RGB').resize((640, 480))
-                    draw = ImageDraw.Draw(im)
-                    draw.rectangle([(10, 10), (390, 52)], fill=(15, 23, 42))
-                    draw.rectangle([(10, 10), (18, 52)], fill=(34, 197, 94))
-                    draw.text((28, 20), f"REC | {cap_time}", fill=(255, 255, 255), font=font)
+for fp, cap_time in valid_imgs:
+im = Image.open(fp).convert('RGB').resize((640, 480))
+draw = ImageDraw.Draw(im)
+draw.rectangle([(10, 10), (390, 52)], fill=(15, 23, 42))
+draw.rectangle([(10, 10), (18, 52)], fill=(34, 197, 94))
+draw.text((28, 20), f"REC | {cap_time}", fill=(255, 255, 255), font=font)
 
-                    arr = np.array(im)
-                    writer.append_data(arr)
-                    writer.append_data(arr)
-                writer.close()
+arr = np.array(im)
+writer.append_data(arr)
+writer.append_data(arr)
+writer.close()
 
-                rel_path = f"captured_videos/{filename}"
-                conn.execute("CREATE TABLE IF NOT EXISTS captured_videos (id INTEGER PRIMARY KEY AUTOINCREMENT, incident_id INTEGER, file_path TEXT, created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP)")
-                conn.execute("DELETE FROM captured_videos WHERE incident_id = ?", (incident_id,))
-                conn.execute("INSERT INTO captured_videos (incident_id, file_path) VALUES (?, ?)", (incident_id, rel_path))
-            except Exception as e:
-                logging.error(f"Server-side MP4 video build failed: {e}")
-    else:
-        conn.execute("UPDATE incidents SET status = 'COMPLETED' WHERE user_id = ? AND status = 'ACTIVE'", (user['id'],))
-    
-    conn.execute("UPDATE transformers SET status = 'SAFE' WHERE user_id = ?", (user['id'],))
-    conn.commit()
-    conn.close()
+rel_path = f"captured_videos/{filename}"
+conn.execute("CREATE TABLE IF NOT EXISTS captured_videos (id INTEGER PRIMARY KEY AUTOINCREMENT, incident_id INTEGER, file_path TEXT, created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP)")
+conn.execute("DELETE FROM captured_videos WHERE incident_id = ?", (incident_id,))
+conn.execute("INSERT INTO captured_videos (incident_id, file_path) VALUES (?, ?)", (incident_id, rel_path))
+except Exception as e:
+logging.error(f"Server-side MP4 video build failed: {e}")
+else:
+conn.execute("UPDATE incidents SET status = 'COMPLETED' WHERE user_id = ? AND status = 'ACTIVE'", (user['id'],))
+conn.execute("UPDATE transformers SET status = 'SAFE' WHERE user_id = ?", (user['id'],))
+conn.commit()
+conn.close()
 
-    return jsonify({"success": True})
+return jsonify({"success": True})
 
 @app.route('/api/upload_frame', methods=['POST'])
 def upload_frame():
-    user = get_current_user()
-    if not user:
-        return jsonify({"success": False}), 401
+user = get_current_user()
+if not user:
+return jsonify({"success": False}), 401
 
-    data = request.json or {}
-    incident_id = data.get("incident_id")
-    image_data = data.get("image")
+data = request.json or {}
+incident_id = data.get("incident_id")
+image_data = data.get("image")
 
-    if not incident_id or not image_data or len(image_data) < 100:
-        return jsonify({"success": False, "message": "Invalid frame payload"}), 400
+if not incident_id or not image_data or len(image_data) < 100:
+return jsonify({"success": False, "message": "Invalid frame payload"}), 400
 
-    try:
-        header, encoded = image_data.split(",", 1)
-        file_bytes = base64.b64decode(encoded)
+try:
+header, encoded = image_data.split(",", 1)
+file_bytes = base64.b64decode(encoded)
 
-        timestamp_str = datetime.datetime.now().strftime("%d %b %Y %H:%M:%S")
-        filename_str = datetime.datetime.now().strftime("%Y%m%d_%H%M%S_%f")[:19]
-        filename = f"TG-{incident_id}_{filename_str}.jpg"
-        filepath = os.path.join(UPLOAD_FOLDER, filename)
+timestamp_str = datetime.datetime.now().strftime("%d %b %Y %H:%M:%S")
+filename_str = datetime.datetime.now().strftime("%Y%m%d_%H%M%S_%f")[:19]
+filename = f"TG-{incident_id}_{filename_str}.jpg"
+filepath = os.path.join(UPLOAD_FOLDER, filename)
 
-        with open(filepath, "wb") as f:
-            f.write(file_bytes)
+with open(filepath, "wb") as f:
+f.write(file_bytes)
 
-        rel_path = f"captured_images/{filename}"
+rel_path = f"captured_images/{filename}"
 
-        conn = get_db()
-        conn.execute('''
-            INSERT INTO captured_images (incident_id, file_path, captured_at)
-            VALUES (?, ?, ?)
-        ''', (incident_id, rel_path, timestamp_str))
-        conn.commit()
+conn = get_db()
+conn.execute('''
+INSERT INTO captured_images (incident_id, file_path, captured_at)
+VALUES (?, ?, ?)
+''', (incident_id, rel_path, timestamp_str))
+conn.commit()
 
-        imgs_total = conn.execute(
-            "SELECT COUNT(*) as count FROM captured_images WHERE incident_id = ?",
-            (incident_id,)
-        ).fetchone()['count']
+imgs_total = conn.execute(
+"SELECT COUNT(*) as count FROM captured_images WHERE incident_id = ?",
+(incident_id,)
+).fetchone()['count']
 
-        conn.close()
+conn.close()
 
-        return jsonify({"success": True, "path": rel_path, "captured_at": timestamp_str, "total_count": imgs_total})
-    except Exception as e:
-        return jsonify({"success": False, "error": str(e)}), 500
+return jsonify({"success": True, "path": rel_path, "captured_at": timestamp_str, "total_count": imgs_total})
+except Exception as e:
+return jsonify({"success": False, "error": str(e)}), 500
 
 @app.route('/api/alert/delete', methods=['POST'])
 def delete_alert():
-    user = get_current_user()
-    if not user:
-        return jsonify({"success": False}), 401
+user = get_current_user()
+if not user:
+return jsonify({"success": False}), 401
 
-    data = request.json or {}
-    alert_id = data.get("alert_id")
+data = request.json or {}
+alert_id = data.get("alert_id")
 
-    conn = get_db()
-    alert = conn.execute("SELECT * FROM alerts WHERE id = ? AND user_id = ?", (alert_id, user['id'])).fetchone()
-    
-    if alert:
-        incident_id = alert['incident_id']
-        
-        imgs = conn.execute("SELECT file_path FROM captured_images WHERE incident_id = ?", (incident_id,)).fetchall()
-        for img in imgs:
-            if img['file_path']:
-                file_abs_path = os.path.join(app.root_path, 'static', img['file_path'])
-                if os.path.exists(file_abs_path):
-                    try:
-                        os.remove(file_abs_path)
-                    except Exception as e:
-                        logging.error(f"Error removing image file: {e}")
+conn = get_db()
+alert = conn.execute("SELECT * FROM alerts WHERE id = ? AND user_id = ?", (alert_id, user['id'])).fetchone()
+if alert:
+incident_id = alert['incident_id']
+imgs = conn.execute("SELECT file_path FROM captured_images WHERE incident_id = ?", (incident_id,)).fetchall()
+for img in imgs:
+if img['file_path']:
+file_abs_path = os.path.join(app.root_path, 'static', img['file_path'])
+if os.path.exists(file_abs_path):
+try:
+os.remove(file_abs_path)
+except Exception as e:
+logging.error(f"Error removing image file: {e}")
 
-        conn.execute("UPDATE alerts SET status = 'DELETED' WHERE id = ?", (alert_id,))
-        conn.execute("UPDATE incidents SET status = 'DELETED' WHERE id = ?", (incident_id,))
-        conn.execute("DELETE FROM captured_images WHERE incident_id = ?", (incident_id,))
-        conn.commit()
+conn.execute("UPDATE alerts SET status = 'DELETED' WHERE id = ?", (alert_id,))
+conn.execute("UPDATE incidents SET status = 'DELETED' WHERE id = ?", (incident_id,))
+conn.execute("DELETE FROM captured_images WHERE incident_id = ?", (incident_id,))
+conn.commit()
 
-    conn.close()
-    return jsonify({"success": True})
+conn.close()
+return jsonify({"success": True})
 
 @app.route('/api/history/restore', methods=['POST'])
 def restore_history():
-    user = get_current_user()
-    if not user:
-        return jsonify({"success": False}), 401
+user = get_current_user()
+if not user:
+return jsonify({"success": False}), 401
 
-    data = request.json or {}
-    incident_id = data.get("incident_id")
+data = request.json or {}
+incident_id = data.get("incident_id")
 
-    conn = get_db()
-    incident = conn.execute("SELECT id FROM incidents WHERE id = ? AND user_id = ?", (incident_id, user['id'])).fetchone()
-    if incident:
-        conn.execute("UPDATE incidents SET status = 'ACTIVE' WHERE id = ?", (incident_id,))
-        conn.execute("UPDATE alerts SET status = 'ACTIVE' WHERE incident_id = ? AND user_id = ?", (incident_id, user['id']))
-        conn.commit()
-    
-    conn.close()
-    return jsonify({"success": True})
+conn = get_db()
+incident = conn.execute("SELECT id FROM incidents WHERE id = ? AND user_id = ?", (incident_id, user['id'])).fetchone()
+if incident:
+conn.execute("UPDATE incidents SET status = 'ACTIVE' WHERE id = ?", (incident_id,))
+conn.execute("UPDATE alerts SET status = 'ACTIVE' WHERE incident_id = ? AND user_id = ?", (incident_id, user['id']))
+conn.commit()
+conn.close()
+return jsonify({"success": True})
 
 @app.route('/api/history/delete_permanent', methods=['POST'])
 def delete_history_permanent():
-    user = get_current_user()
-    if not user:
-        return jsonify({"success": False}), 401
+user = get_current_user()
+if not user:
+return jsonify({"success": False}), 401
 
-    data = request.json or {}
-    incident_id = data.get("incident_id")
+data = request.json or {}
+incident_id = data.get("incident_id")
 
-    conn = get_db()
-    
-    imgs = conn.execute("SELECT file_path FROM captured_images WHERE incident_id = ?", (incident_id,)).fetchall()
-    for img in imgs:
-        if img['file_path']:
-            file_abs_path = os.path.join(app.root_path, 'static', img['file_path'])
-            if os.path.exists(file_abs_path):
-                try:
-                    os.remove(file_abs_path)
-                except Exception as e:
-                    logging.error(f"Error removing image file: {e}")
+conn = get_db()
+imgs = conn.execute("SELECT file_path FROM captured_images WHERE incident_id = ?", (incident_id,)).fetchall()
+for img in imgs:
+if img['file_path']:
+file_abs_path = os.path.join(app.root_path, 'static', img['file_path'])
+if os.path.exists(file_abs_path):
+try:
+os.remove(file_abs_path)
+except Exception as e:
+logging.error(f"Error removing image file: {e}")
 
-    videos = conn.execute("SELECT file_path FROM captured_videos WHERE incident_id = ?", (incident_id,)).fetchall()
-    for vid in videos:
-        if vid['file_path']:
-            vid_abs_path = os.path.join(app.root_path, 'static', vid['file_path'])
-            if os.path.exists(vid_abs_path):
-                try:
-                    os.remove(vid_abs_path)
-                except Exception as e:
-                    logging.error(f"Error removing video file: {e}")
+videos = conn.execute("SELECT file_path FROM captured_videos WHERE incident_id = ?", (incident_id,)).fetchall()
+for vid in videos:
+if vid['file_path']:
+vid_abs_path = os.path.join(app.root_path, 'static', vid['file_path'])
+if os.path.exists(vid_abs_path):
+try:
+os.remove(vid_abs_path)
+except Exception as e:
+logging.error(f"Error removing video file: {e}")
 
-    conn.execute("DELETE FROM incidents WHERE id = ? AND user_id = ?", (incident_id, user['id']))
-    conn.execute("DELETE FROM alerts WHERE incident_id = ? AND user_id = ?", (incident_id, user['id']))
-    conn.execute("DELETE FROM captured_images WHERE incident_id = ?", (incident_id,))
-    conn.execute("DELETE FROM captured_videos WHERE incident_id = ?", (incident_id,))
-    conn.commit()
-    conn.close()
+conn.execute("DELETE FROM incidents WHERE id = ? AND user_id = ?", (incident_id, user['id']))
+conn.execute("DELETE FROM alerts WHERE incident_id = ? AND user_id = ?", (incident_id, user['id']))
+conn.execute("DELETE FROM captured_images WHERE incident_id = ?", (incident_id,))
+conn.execute("DELETE FROM captured_videos WHERE incident_id = ?", (incident_id,))
+conn.commit()
+conn.close()
 
-    return jsonify({"success": True})
+return jsonify({"success": True})
 
 # --- APIS FOR RECORDING & THREE REPORT TYPES ---
 @app.route('/api/upload_video', methods=['POST'])
 def upload_video():
-    user = get_current_user()
-    if not user or 'video' not in request.files:
-        return jsonify({"success": False, "message": "Invalid request"}), 400
+user = get_current_user()
+if not user or 'video' not in request.files:
+return jsonify({"success": False, "message": "Invalid request"}), 400
 
-    file = request.files['video']
-    incident_id = request.form.get('incident_id')
+file = request.files['video']
+incident_id = request.form.get('incident_id')
 
-    if not incident_id or not file:
-        return jsonify({"success": False, "message": "Missing incident ID or file"}), 400
+if not incident_id or not file:
+return jsonify({"success": False, "message": "Missing incident ID or file"}), 400
 
-    ext = "mp4" if "mp4" in file.filename.lower() else "webm"
-    filename = f"TG-{incident_id}_recording.{ext}"
-    filepath = os.path.join(VIDEO_FOLDER, filename)
-    file.save(filepath)
+ext = "mp4" if "mp4" in file.filename.lower() else "webm"
+filename = f"TG-{incident_id}_recording.{ext}"
+filepath = os.path.join(VIDEO_FOLDER, filename)
+file.save(filepath)
 
-    rel_path = f"captured_videos/{filename}"
+rel_path = f"captured_videos/{filename}"
 
-    conn = get_db()
-    conn.execute("CREATE TABLE IF NOT EXISTS captured_videos (id INTEGER PRIMARY KEY AUTOINCREMENT, incident_id INTEGER, file_path TEXT, created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP)")
-    conn.execute("INSERT INTO captured_videos (incident_id, file_path) VALUES (?, ?)", (incident_id, rel_path))
-    conn.commit()
-    conn.close()
+conn = get_db()
+conn.execute("CREATE TABLE IF NOT EXISTS captured_videos (id INTEGER PRIMARY KEY AUTOINCREMENT, incident_id INTEGER, file_path TEXT, created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP)")
+conn.execute("INSERT INTO captured_videos (incident_id, file_path) VALUES (?, ?)", (incident_id, rel_path))
+conn.commit()
+conn.close()
 
-    return jsonify({"success": True, "video_path": rel_path})
+return jsonify({"success": True, "video_path": rel_path})
 
 @app.route('/api/generate_report', methods=['POST'])
 def generate_report():
-    user = get_current_user()
-    if not user:
-        return jsonify({"success": False}), 401
+user = get_current_user()
+if not user:
+return jsonify({"success": False}), 401
 
-    data = request.json or {}
-    incident_id = data.get("incident_id")
-    report_type = data.get("report_type")
+data = request.json or {}
+incident_id = data.get("incident_id")
+report_type = data.get("report_type")
 
-    conn = get_db()
-    seq_map = get_user_incident_seq_map(conn, user['id'])
-    incident = conn.execute("SELECT * FROM incidents WHERE id = ? AND user_id = ?", (incident_id, user['id'])).fetchone()
-    if not incident:
-        conn.close()
-        return jsonify({"success": False, "message": "Incident not found"}), 404
+conn = get_db()
+seq_map = get_user_incident_seq_map(conn, user['id'])
+incident = conn.execute("SELECT * FROM incidents WHERE id = ? AND user_id = ?", (incident_id, user['id'])).fetchone()
+if not incident:
+conn.close()
+return jsonify({"success": False, "message": "Incident not found"}), 404
 
-    imgs = conn.execute("SELECT * FROM captured_images WHERE incident_id = ?", (incident['id'],)).fetchall()
-    v_row = conn.execute("SELECT file_path FROM captured_videos WHERE incident_id = ? ORDER BY id DESC LIMIT 1", (incident['id'],)).fetchone()
-    video_rel_path = v_row['file_path'] if v_row else None
+imgs = conn.execute("SELECT * FROM captured_images WHERE incident_id = ?", (incident['id'],)).fetchall()
+v_row = conn.execute("SELECT file_path FROM captured_videos WHERE incident_id = ? ORDER BY id DESC LIMIT 1", (incident['id'],)).fetchone()
+video_rel_path = v_row['file_path'] if v_row else None
 
-    conn.close()
+conn.close()
 
-    report_facts = {
-        "id": seq_map.get(incident['id'], incident['id']),
-        "owner_name": user['owner_name'] or user['username'],
-        "phone": user['phone'],
-        "email": user['email'],
-        "location": user['location'],
-        "transformer_id": incident['transformer_id'],
-        "detected_time": incident['detected_time'],
-        "threat_level": incident['threat_level'],
-        "discom_name": user['discom_name'] or "APSPDCL",
-        "capacity": "100 KVA",
-        "estimated_value": "2,50,000",
-        "images": imgs
-    }
+report_facts = {
+"id": seq_map.get(incident['id'], incident['id']),
+"owner_name": user['owner_name'] or user['username'],
+"phone": user['phone'],
+"email": user['email'],
+"location": user['location'],
+"transformer_id": incident['transformer_id'],
+"detected_time": incident['detected_time'],
+"threat_level": incident['threat_level'],
+"discom_name": user['discom_name'] or "APSPDCL",
+"capacity": "100 KVA",
+"estimated_value": "2,50,000",
+"images": imgs
+}
 
-    if report_type == 'POLICE':
-        filename = create_police_complaint_docx(report_facts, REPORTS_FOLDER)
-    elif report_type == 'ELECTRICAL':
-        filename = create_electrical_complaint_docx(report_facts, REPORTS_FOLDER)
-    elif report_type in ['EVIDENCE_PDF', 'ZIP']:
-        filename = create_evidence_zip(report_facts, REPORTS_FOLDER, app.static_folder, video_rel_path)
-    else:
-        return jsonify({"success": False, "message": "Invalid report type"}), 400
+if report_type == 'POLICE':
+filename = create_police_complaint_docx(report_facts, REPORTS_FOLDER)
+elif report_type == 'ELECTRICAL':
+filename = create_electrical_complaint_docx(report_facts, REPORTS_FOLDER)
+elif report_type in ['EVIDENCE_PDF', 'ZIP']:
+filename = create_evidence_zip(report_facts, REPORTS_FOLDER, app.static_folder, video_rel_path)
+else:
+return jsonify({"success": False, "message": "Invalid report type"}), 400
 
-    return jsonify({"success": True, "download_url": f"/static/reports/{filename}"})
+return jsonify({"success": True, "download_url": f"/static/reports/{filename}"})
 
 if __name__ == '__main__':
-    app.run(host='127.0.0.1', port=5001, debug=True)
+app.run(host='127.0.0.1', port=5001, debug=True) 
